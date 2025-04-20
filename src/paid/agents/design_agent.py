@@ -1,8 +1,8 @@
 import json
 from typing import Dict, Any, List
 
-from .base import BaseAgent
-from ..database import get_conversation_history, update_design_state, get_latest_design_state
+from paid.agents.base import BaseAgent
+from paid.database import get_conversation_history, update_design_state, get_latest_design_state
 
 class DesignAgent(BaseAgent):
     """

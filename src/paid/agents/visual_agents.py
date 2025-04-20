@@ -1,7 +1,7 @@
 from typing import Dict, Any, List, Optional
 
-from .base import BaseAgent
-from ..database import get_latest_design_state
+from paid.agents.base import BaseAgent
+from paid.database import get_latest_design_state
 
 class MermaidAgent(BaseAgent):
     """

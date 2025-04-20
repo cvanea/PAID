@@ -2,7 +2,7 @@ import uuid
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
-from .models import db, DesignSession, DesignState, Conversation, initialize_db
+from paid.database.models import db, DesignSession, DesignState, Conversation, initialize_db
 
 def create_session() -> str:
     """

@@ -42,10 +42,14 @@ PAID consists of multiple agents working together:
 
 ## Usage
 
-Run the application:
+You may run the application with:
 
 ```bash
-python -m paid
+# First initialize the database
+uv run paid
+
+# Then run the Streamlit app
+uv run -m streamlit run src/paid/frontend/app.py
 ```
 
 This will start the Streamlit frontend where you can interact with the voice design partner.

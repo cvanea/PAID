@@ -1,5 +1,5 @@
-from .models import DesignSession, DesignState, Conversation
-from .operations import (
+from paid.database.models import DesignSession, DesignState, Conversation
+from paid.database.operations import (
     setup_database,
     create_session,
     get_session,

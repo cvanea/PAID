@@ -1,16 +1,18 @@
 import streamlit as st
 import json
 import time
+import asyncio
 from typing import Dict, Any, Optional
 
-from ..database import (
+from paid.database import (
     setup_database,
     create_session,
     get_session,
     get_latest_design_state,
     get_conversation_history
 )
-from ..agents import VoiceAgent, DesignAgent, MermaidAgent
+from paid.agents import VoiceAgent, DesignAgent, MermaidAgent
+from paid.agents.anthropic_deepgram_agent import AnthropicDeepgramAgent
 
 
 def initialize_session() -> str:
@@ -143,15 +145,56 @@ def process_user_input(session_id: str, user_input: str) -> None:
         design_agent.process(session_id, {})
 
 
+async def start_live_voice_session(session_id: str):
+    """Start a live voice conversation session."""
+    try:
+        # Initialize the integrated agent
+        agent = AnthropicDeepgramAgent(session_id)
+        
+        # Store the agent in session state
+        st.session_state.voice_agent = agent
+        
+        # Start the agent
+        success = await agent.start()
+        
+        if success:
+            st.session_state.voice_active = True
+            return "Voice session started successfully"
+        else:
+            return "Failed to start voice session"
+    except Exception as e:
+        return f"Error starting voice session: {str(e)}"
+
+async def stop_live_voice_session():
+    """Stop the live voice conversation session."""
+    try:
+        if hasattr(st.session_state, 'voice_agent') and st.session_state.voice_agent:
+            await st.session_state.voice_agent.stop()
+            st.session_state.voice_active = False
+            return "Voice session stopped"
+        return "No active voice session to stop"
+    except Exception as e:
+        return f"Error stopping voice session: {str(e)}"
+
+async def send_text_to_voice_agent(session_id: str, text: str):
+    """Send text directly to the voice agent."""
+    try:
+        if hasattr(st.session_state, 'voice_agent') and st.session_state.voice_agent:
+            success = await st.session_state.voice_agent.send_text(text)
+            return "Message sent to voice agent" if success else "Failed to send message"
+        return "No active voice agent"
+    except Exception as e:
+        return f"Error sending message: {str(e)}"
+
 def main():
     """Main Streamlit application."""
     st.set_page_config(
-        page_title="PAID - Voice Design Partner",
+        page_title="PAID - Product AI Designer",
         page_icon="🎨",
         layout="wide"
     )
     
-    st.title("PAID - Voice Design Partner")
+    st.title("PAID - Product AI Designer")
     st.markdown("Discuss your design ideas and watch them evolve in real-time")
     
     # Initialize database
@@ -160,9 +203,12 @@ def main():
     # Initialize or get session
     session_id = initialize_session()
     
-    # Initialize session state for messages
+    # Initialize session state
     if "messages" not in st.session_state:
         st.session_state.messages = []
+    
+    if "voice_active" not in st.session_state:
+        st.session_state.voice_active = False
     
     # Create two columns: design info and conversation
     col1, col2 = st.columns([2, 1])
@@ -175,21 +221,66 @@ def main():
         display_user_flows(session_id)
     
     with col2:
+        # Voice mode selector
+        st.subheader("Interaction Mode")
+        
+        voice_mode = st.radio(
+            "Choose your interaction mode:",
+            ["Text Chat", "Live Voice (Experimental)"],
+            index=0,
+            help="Text chat uses text input. Live Voice uses your microphone for real-time conversation."
+        )
+        
         # Display conversation
         st.subheader("Conversation")
         
-        # Display the conversation history
-        for speaker, message in st.session_state.messages:
-            with st.chat_message(speaker):
-                st.write(message)
-        
-        # Input for new messages
-        user_input = st.chat_input("Say something to start or continue designing")
-        if user_input:
-            process_user_input(session_id, user_input)
+        # Live voice controls
+        if voice_mode == "Live Voice (Experimental)":
+            col_start, col_stop = st.columns(2)
             
-            # This forces a re-run of the app to update everything
-            st.rerun()
+            with col_start:
+                if not st.session_state.voice_active:
+                    if st.button("Start Voice Session", key="start_voice"):
+                        # Run the async function
+                        result = asyncio.run(start_live_voice_session(session_id))
+                        st.info(result)
+                        st.rerun()
+            
+            with col_stop:
+                if st.session_state.voice_active:
+                    if st.button("Stop Voice Session", key="stop_voice"):
+                        # Run the async function
+                        result = asyncio.run(stop_live_voice_session())
+                        st.info(result)
+                        st.rerun()
+            
+            # Display current status
+            if st.session_state.voice_active:
+                st.success("Voice session is active. Speak into your microphone.")
+                
+                # Option to send text directly to the voice agent
+                voice_text_input = st.text_input("Or type a message for the voice agent:")
+                if voice_text_input:
+                    result = asyncio.run(send_text_to_voice_agent(session_id, voice_text_input))
+                    st.info(result)
+            else:
+                st.warning("Voice session is not active. Click 'Start Voice Session' to begin.")
+        
+        # Display the conversation history (for both modes)
+        # In live voice mode, this will update from the database as new messages come in
+        conversation = get_conversation_history(session_id)
+        for message in conversation:
+            with st.chat_message("user" if message["speaker"] == "user" else "assistant"):
+                st.write(message["message"])
+        
+        # Text chat input (only for text chat mode)
+        if voice_mode == "Text Chat":
+            user_input = st.chat_input("Say something to start or continue designing")
+            if user_input:
+                process_user_input(session_id, user_input)
+                
+                # This forces a re-run of the app to update everything
+                st.rerun()
 
 
 if __name__ == "__main__":

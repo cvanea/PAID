@@ -2,11 +2,12 @@ import os
 import json
 from typing import Dict, Any, Optional, List
 
-import elevenlabs
-from deepgram import Deepgram
+from elevenlabs.client import ElevenLabs
+from deepgram import DeepgramClient, DeepgramClientOptions
+from deepgram.clients.listen.v1.rest.options import PrerecordedOptions
 
-from .base import BaseAgent
-from ..database import get_latest_design_state, add_conversation_message
+from paid.agents.base import BaseAgent
+from paid.database import get_latest_design_state, add_conversation_message
 
 class VoiceAgent(BaseAgent):
     """Agent that handles voice interactions with the user."""
@@ -15,16 +16,20 @@ class VoiceAgent(BaseAgent):
         """Initialize the voice agent with API clients."""
         super().__init__()
         
-        # Initialize Deepgram for speech-to-text
-        self.deepgram = Deepgram(os.getenv("DEEPGRAM_API_KEY"))
+        # Initialize Deepgram with v3 SDK
+        config = DeepgramClientOptions()
+        self.deepgram = DeepgramClient(
+            api_key=os.getenv("DEEPGRAM_API_KEY", ""),
+            config=config
+        )
         
         # Initialize ElevenLabs for text-to-speech
-        elevenlabs.set_api_key(os.getenv("ELEVENLABS_API_KEY"))
-        self.voice_id = os.getenv("ELEVENLABS_VOICE_ID", "GBv7mTt0atIp3Br8iCZE")  # Default voice
+        self.elevenlabs_client = ElevenLabs(api_key=os.getenv("ELEVENLABS_API_KEY"))
+        self.voice_id = os.getenv("ELEVENLABS_VOICE_ID", "cgSgspJ2msm6clMCkdW9")  # Default voice
     
     async def transcribe_audio(self, audio_data: bytes) -> str:
         """
-        Transcribe audio data to text using Deepgram.
+        Transcribe audio data to text using Deepgram v3 API.
         
         Args:
             audio_data: Raw audio data bytes.
@@ -32,17 +37,33 @@ class VoiceAgent(BaseAgent):
         Returns:
             str: Transcribed text.
         """
-        source = {"buffer": audio_data, "mimetype": "audio/wav"}
-        response = await self.deepgram.transcription.prerecorded(
-            source, 
-            {
-                "smart_format": True,
-                "model": "nova-2",
-                "language": "en-US"
-            }
+        # Configure transcription options
+        options = PrerecordedOptions(
+            model="nova-3",  # Using latest nova-3 model
+            smart_format=True,
+            language="en-US"
         )
         
-        return response["results"]["channels"][0]["alternatives"][0]["transcript"]
+        try:
+            # Send the audio for transcription
+            response = await self.deepgram.listen.asyncio.v("1").prerecorded.transcribe_buffer(
+                audio_data,
+                options
+            )
+            
+            # Extract the transcript from the response
+            if hasattr(response, 'results'):
+                results = response.results
+                if hasattr(results, 'channels') and results.channels:
+                    channel = results.channels[0]
+                    if hasattr(channel, 'alternatives') and channel.alternatives:
+                        return channel.alternatives[0].transcript
+            
+            # Return empty string if no transcript
+            return ""
+        except Exception as e:
+            print(f"Error transcribing audio: {e}")
+            return ""
     
     def synthesize_speech(self, text: str) -> bytes:
         """
@@ -54,7 +75,7 @@ class VoiceAgent(BaseAgent):
         Returns:
             bytes: Audio data in bytes.
         """
-        audio = elevenlabs.generate(
+        audio = self.elevenlabs_client.generate(
             text=text,
             voice=self.voice_id,
             model="eleven_turbo_v2"
