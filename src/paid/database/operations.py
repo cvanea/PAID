@@ -30,13 +30,14 @@ def get_session(session_id: str) -> Optional[DesignSession]:
     except DesignSession.DoesNotExist:
         return None
 
-def update_design_state(session_id: str, state: Dict[str, Any]) -> DesignState:
+def update_design_state(session_id: str, state: Dict[str, Any], instructions: str = None) -> DesignState:
     """
     Update the design state for a session.
     
     Args:
         session_id: The ID of the session.
         state: The new design state as a dictionary.
+        instructions: Optional voice agent instructions to associate with this state.
         
     Returns:
         DesignState: The newly created design state.
@@ -47,6 +48,8 @@ def update_design_state(session_id: str, state: Dict[str, Any]) -> DesignState:
     
     design_state = DesignState(session=session)
     design_state.state = state
+    if instructions is not None:
+        design_state.instructions = instructions
     design_state.save()
     
     return design_state
@@ -73,6 +76,31 @@ def get_latest_design_state(session_id: str) -> Optional[Dict[str, Any]]:
                 .first())
         
         return state.state if state else None
+    except Exception:
+        return None
+
+def get_latest_instructions(session_id: str) -> Optional[str]:
+    """
+    Get the latest voice agent instructions for a session.
+    
+    Args:
+        session_id: The ID of the session.
+        
+    Returns:
+        Optional[str]: The latest instructions if found, None otherwise.
+    """
+    try:
+        session = get_session(session_id)
+        if not session:
+            return None
+        
+        state = (DesignState
+                .select()
+                .where(DesignState.session == session)
+                .order_by(DesignState.created_at.desc())
+                .first())
+        
+        return state.instructions if state and state.instructions else None
     except Exception:
         return None
 

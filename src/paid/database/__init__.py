@@ -5,6 +5,7 @@ from paid.database.operations import (
     get_session,
     update_design_state,
     get_latest_design_state,
+    get_latest_instructions,
     add_conversation_message,
     get_conversation_history
 )
@@ -18,6 +19,7 @@ __all__ = [
     'get_session',
     'update_design_state',
     'get_latest_design_state',
+    'get_latest_instructions',
     'add_conversation_message',
     'get_conversation_history'
 ]

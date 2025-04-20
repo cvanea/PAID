@@ -11,7 +11,7 @@ from paid.database import (
     get_latest_design_state,
     get_conversation_history
 )
-from paid.agents import VoiceAgent, DesignAgent, MermaidAgent
+from paid.agents import MermaidAgent
 from paid.agents.anthropic_deepgram_agent import AnthropicDeepgramAgent
 
 
@@ -121,40 +121,23 @@ def display_user_flows(session_id: str) -> None:
                 render_mermaid(result["diagram_code"])
 
 
-def process_user_input(session_id: str, user_input: str) -> None:
-    """Process user input and update the UI."""
-    if not user_input.strip():
-        return
+async def start_live_voice_session(session_id: str, custom_instructions: str = None):
+    """
+    Start a live voice conversation session.
     
-    # Add the user message to the conversation history
-    st.session_state.messages.append(("user", user_input))
-    
-    # Process with voice agent
-    voice_agent = VoiceAgent()
-    with st.spinner("Thinking..."):
-        voice_response = voice_agent.process(session_id, {
-            "user_message": user_input
-        })
-    
-    # Add the agent's response to the conversation history
-    st.session_state.messages.append(("assistant", voice_response["response"]))
-    
-    # Update the design state using the design agent
-    design_agent = DesignAgent()
-    with st.spinner("Updating design..."):
-        design_agent.process(session_id, {})
-
-
-async def start_live_voice_session(session_id: str):
-    """Start a live voice conversation session."""
+    Args:
+        session_id: The database session ID
+        custom_instructions: Optional custom instructions to use instead of default template
+    """
     try:
-        # Initialize the integrated agent
-        agent = AnthropicDeepgramAgent(session_id)
+        # Initialize the integrated agent with custom instructions if provided
+        agent = AnthropicDeepgramAgent(session_id, custom_instructions)
         
         # Store the agent in session state
         st.session_state.voice_agent = agent
         
-        # Start the agent
+        # Get the current state and start the agent
+        # The agent will automatically use the latest design state from the database
         success = await agent.start()
         
         if success:

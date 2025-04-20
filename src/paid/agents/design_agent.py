@@ -2,7 +2,8 @@ import json
 from typing import Dict, Any, List
 
 from paid.agents.base import BaseAgent
-from paid.database import get_conversation_history, update_design_state, get_latest_design_state
+from paid.database import get_conversation_history, update_design_state, get_latest_design_state, get_latest_instructions
+from paid.defaults import DEFAULT_DESIGN_STATE
 
 class DesignAgent(BaseAgent):
     """
@@ -12,7 +13,7 @@ class DesignAgent(BaseAgent):
     
     def process(self, session_id: str, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Process conversation and update the design state.
+        Process conversation and update the design state and voice agent instructions.
         
         Args:
             session_id: The ID of the current design session.
@@ -25,27 +26,56 @@ class DesignAgent(BaseAgent):
         # Get the current design state
         current_state = get_latest_design_state(session_id) or self._create_initial_state()
         
+        # Get the current instructions
+        from paid.database import get_latest_instructions
+        previous_instructions = get_latest_instructions(session_id)
+        
         # Get conversation history
         conversation = get_conversation_history(session_id)
         
         # Create a prompt that includes the current design state and conversation
-        prompt = self._create_prompt(current_state, conversation)
+        design_prompt = self._create_design_prompt(current_state, conversation)
         
         # Generate updated design state using Claude
-        response = self.client.messages.create(
+        design_response = self.client.messages.create(
             model=self.model,
             max_tokens=4000,
-            system=prompt["system"],
+            system=design_prompt["system"],
             messages=[
-                {"role": "user", "content": prompt["user"]}
+                {"role": "user", "content": design_prompt["user"]}
             ]
         )
         
         # Extract the JSON from the response
-        updated_state = self._extract_json(response.content[0].text)
+        updated_state = self._extract_json(design_response.content[0].text)
         
-        # Save the updated design state to the database
-        update_design_state(session_id, updated_state)
+        # Now, generate instructions for the voice agent based on the updated design state
+        instruction_prompt = self._create_instruction_prompt(updated_state, conversation, previous_instructions)
+        
+        instruction_response = self.client.messages.create(
+            model=self.model,
+            max_tokens=2000,
+            system=instruction_prompt["system"],
+            messages=[
+                {"role": "user", "content": instruction_prompt["user"]}
+            ]
+        )
+        
+        # Extract instructions from the response
+        instruction_text = instruction_response.content[0].text.strip()
+        
+        # Check if the response indicates no change is needed
+        if instruction_text.startswith("NO_CHANGE:"):
+            print(f"No change to instructions: {instruction_text}")
+            # Use previous instructions if no change is needed
+            instructions = previous_instructions
+        else:
+            # Use the new instructions
+            instructions = instruction_text
+            print("Updated voice agent instructions")
+        
+        # Save the updated design state and instructions to the database
+        update_design_state(session_id, updated_state, instructions)
         
         return updated_state
     
@@ -56,27 +86,12 @@ class DesignAgent(BaseAgent):
         Returns:
             Dict[str, Any]: An empty design state.
         """
-        return {
-            "project": {
-                "name": "",
-                "description": ""
-            },
-            "problem": {
-                "statement": "",
-                "context": ""
-            },
-            "users": [],
-            "requirements": {
-                "functional": [],
-                "non_functional": []
-            },
-            "user_flows": [],
-            "features": []
-        }
+        # Use the centralized default design state
+        return DEFAULT_DESIGN_STATE.copy()
     
-    def _create_prompt(self, current_state: Dict[str, Any], conversation: List[Dict[str, Any]]) -> Dict[str, str]:
+    def _create_design_prompt(self, current_state: Dict[str, Any], conversation: List[Dict[str, Any]]) -> Dict[str, str]:
         """
-        Create a prompt for Claude based on the current state and conversation.
+        Create a prompt for Claude to update the design state based on conversation.
         
         Args:
             current_state: The current design state.
@@ -129,6 +144,96 @@ class DesignAgent(BaseAgent):
         {conversation_text}
         
         Please update the design state based on the conversation and return the complete updated JSON.
+        """
+        
+        return {
+            "system": system_prompt,
+            "user": user_prompt
+        }
+        
+    def _create_instruction_prompt(self, design_state: Dict[str, Any], conversation: List[Dict[str, Any]], previous_instructions: str = None) -> Dict[str, str]:
+        """
+        Create a prompt for Claude to potentially update voice agent instructions based on the design state.
+        
+        Args:
+            design_state: The current design state.
+            conversation: The conversation history.
+            previous_instructions: Previous instructions for the voice agent, if available.
+            
+        Returns:
+            Dict[str, str]: Dictionary with "system" and "user" prompts.
+        """
+        # Format the current state as a readable string
+        design_state_json = json.dumps(design_state, indent=2)
+        
+        # Default instructions to use if no previous ones exist
+        default_instructions = """
+        You are PAID (Product AI Designer), a voice design partner assistant that helps users think through their product design ideas.
+        Your goal is to ask thoughtful questions that help the user clarify their design concept and requirements.
+        
+        Here is the current state of the design:
+        {design_state_json}
+        
+        Focus on understanding and enhancing:
+        1. The core problem the design aims to solve
+        2. The target users and their needs
+        3. Key features and functionality
+        4. User flows and interactions
+        5. Visual requirements and constraints
+        
+        Based on the current state, identify gaps and ask questions to fill them.
+        Be conversational, encouraging, and concise in your responses. Ask one focused question at a time.
+        Avoid overwhelming the user with too many questions at once.
+        
+        Your responses will be spoken aloud to the user, so keep them clear and concise.
+        """
+        
+        current_instructions = previous_instructions or default_instructions
+        
+        # Get the last few messages to understand current context
+        recent_messages = conversation[-5:] if len(conversation) > 5 else conversation
+        recent_conversation = ""
+        for message in recent_messages:
+            speaker = "User" if message["speaker"] == "user" else "Assistant"
+            recent_conversation += f"{speaker}: {message['message']}\n\n"
+        
+        system_prompt = """
+        You are an expert at creating instructions for voice agents. Your job is to decide whether the current
+        instructions for a voice design assistant need to be updated based on the current design state and conversation.
+        
+        It's important to maintain consistency in the agent's behavior, so only update the instructions if necessary
+        to better guide the conversation based on significant changes in the design state or conversation direction.
+        
+        Do not make arbitrary changes to the instructions - they should evolve gradually and purposefully.
+        """
+        
+        user_prompt = f"""
+        Here is the current design state:
+        ```json
+        {design_state_json}
+        ```
+        
+        Recent conversation context:
+        {recent_conversation}
+        
+        Current agent instructions:
+        ```
+        {current_instructions}
+        ```
+        
+        Based on the current design state and conversation context, decide if the agent instructions need to be updated.
+        
+        If NO UPDATES are needed, respond with:
+        "NO_CHANGE: <reason why no changes are needed>"
+        
+        If updates ARE needed, provide the complete new instructions with your changes. They should be similar to the
+        current instructions but with specific improvements to better guide the agent. Make sure to include:
+        1. The agent's role as PAID (Product AI Designer)
+        2. A placeholder for the design state JSON {design_state_json}
+        3. Guidance on what to focus on next based on the current state
+        4. Clear instructions on conversational style
+        
+        The new instructions should be in a format ready to be used directly as the system instructions for the voice agent.
         """
         
         return {
