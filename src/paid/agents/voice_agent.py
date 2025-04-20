@@ -1,3 +1,6 @@
+# TODO: This file is not currently in use. It will be repurposed in future to handle the text alternative to voice for a user. 
+# TODO: Voice is currently handled by anthropic_deepgram_agent.py
+
 import os
 import json
 from typing import Dict, Any, Optional, List

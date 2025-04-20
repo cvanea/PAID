@@ -176,15 +176,8 @@ async def stop_live_voice_session():
     except Exception as e:
         return f"Error stopping voice session: {str(e)}"
 
-async def send_text_to_voice_agent(session_id: str, text: str):
-    """Send text directly to the voice agent."""
-    try:
-        if hasattr(st.session_state, 'voice_agent') and st.session_state.voice_agent:
-            success = await st.session_state.voice_agent.send_text(text)
-            return "Message sent to voice agent" if success else "Failed to send message"
-        return "No active voice agent"
-    except Exception as e:
-        return f"Error sending message: {str(e)}"
+# Text input to the voice agent is not currently supported
+# This functionality has been removed as the Deepgram agent only works with microphone input
 
 def main():
     """Main Streamlit application."""
@@ -224,12 +217,9 @@ def main():
         # Voice mode selector
         st.subheader("Interaction Mode")
         
-        voice_mode = st.radio(
-            "Choose your interaction mode:",
-            ["Text Chat", "Live Voice (Experimental)"],
-            index=0,
-            help="Text chat uses text input. Live Voice uses your microphone for real-time conversation."
-        )
+        # For now, only show the voice option since text doesn't work yet
+        voice_mode = "Live Voice (Experimental)"
+        st.info("Currently only voice interaction is supported. Text chat will be available in a future update.")
         
         # Display conversation
         st.subheader("Conversation")
@@ -258,11 +248,8 @@ def main():
             if st.session_state.voice_active:
                 st.success("Voice session is active. Speak into your microphone.")
                 
-                # Option to send text directly to the voice agent
-                voice_text_input = st.text_input("Or type a message for the voice agent:")
-                if voice_text_input:
-                    result = asyncio.run(send_text_to_voice_agent(session_id, voice_text_input))
-                    st.info(result)
+                # Text input to voice agent is currently not supported
+                st.info("The voice agent only supports microphone input at this time.")
             else:
                 st.warning("Voice session is not active. Click 'Start Voice Session' to begin.")
         
@@ -273,7 +260,9 @@ def main():
             with st.chat_message("user" if message["speaker"] == "user" else "assistant"):
                 st.write(message["message"])
         
-        # Text chat input (only for text chat mode)
+        # Text chat input is temporarily disabled
+        # Will be re-enabled in a future update when text support is added
+        """
         if voice_mode == "Text Chat":
             user_input = st.chat_input("Say something to start or continue designing")
             if user_input:
@@ -281,6 +270,7 @@ def main():
                 
                 # This forces a re-run of the app to update everything
                 st.rerun()
+        """
 
 
 if __name__ == "__main__":

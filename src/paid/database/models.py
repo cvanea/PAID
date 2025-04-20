@@ -46,6 +46,19 @@ class Conversation(BaseModel):
 
 def initialize_db():
     """Initialize the database and create tables if they don't exist."""
-    db.connect()
+    # Check if the database is already connected
+    if not db.is_closed():
+        # Connection already open, just use it
+        pass
+    else:
+        # Open a new connection
+        db.connect()
+    
+    # Create tables if they don't exist
     db.create_tables([DesignSession, DesignState, Conversation])
-    db.close()
+    
+    # Only close if we opened it
+    if db.is_closed():
+        pass
+    else:
+        db.close()
