@@ -2,17 +2,19 @@ import streamlit as st
 import json
 import time
 import asyncio
+import os
+from datetime import datetime
 from typing import Dict, Any, Optional
 
 from paid.database import (
     setup_database,
     create_session,
-    get_session,
     get_latest_design_state,
     get_conversation_history
 )
 from paid.agents import MermaidAgent
 from paid.agents.anthropic_deepgram_agent import AnthropicDeepgramAgent
+from paid.frontend.export import generate_md_from_design_state
 
 
 def initialize_session() -> str:
@@ -391,14 +393,31 @@ def main():
                 # Display the visual PRD
                 display_design_state(session_id)
                 
-                # Auto-refresh setup with timestamp
-                import datetime
-                current_time = datetime.datetime.now().strftime("%I:%M:%S %p")
-                st.markdown(f"""
-                <div style='text-align: right; color: #888;'>
-                    <small>Auto-updating PRD in real-time as you talk | Last update: {current_time}</small>
-                </div>
-                """, unsafe_allow_html=True)
+                # Add a download button for the PRD
+                col_info, col_download = st.columns([3, 1])
+                
+                with col_info:
+                    # Auto-refresh setup with timestamp
+                    current_time = datetime.now().strftime("%I:%M:%S %p")
+                    st.markdown(f"""
+                    <div style='text-align: right; color: #888;'>
+                        <small>Auto-updating PRD in real-time as you talk | Last update: {current_time}</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col_download:
+                    # Generate markdown for download
+                    if design_state and "Paid" in design_state:
+                        md_content = generate_md_from_design_state(design_state)
+                        
+                        # Create download button
+                        st.download_button(
+                            label="📥 Download PRD",
+                            data=md_content,
+                            file_name="product_requirements_document.md",
+                            mime="text/markdown",
+                            help="Download the PRD as a Markdown file"
+                        )
                 
                 # Auto-refresh the PRD every 5 seconds if a voice session is active
                 if st.session_state.voice_active and (time.time() - st.session_state.last_refresh) > 5:
