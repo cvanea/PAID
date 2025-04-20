@@ -40,6 +40,11 @@ class AnthropicDeepgramAgent:
         # Store custom instructions if provided
         self.instructions_template = custom_instructions or DEFAULT_INSTRUCTIONS_TEMPLATE
         
+        # Add message buffering to prevent multiple database calls for partial messages
+        self.current_user_transcript = ""
+        self.current_agent_response = ""
+        self.last_speaker = None  # Track who spoke last to detect turn changes
+        
         # Register callbacks
         self.deepgram_agent.register_callbacks(
             on_transcript=self._handle_user_transcript,
@@ -96,9 +101,21 @@ class AnthropicDeepgramAgent:
         Args:
             text: The transcribed user speech
         """
-        # Save the user's message to the database
-        add_conversation_message(self.session_id, "user", text)
-        print(f"Added user message to database: {text}")
+        # If the last speaker was the agent, we're starting a new user turn
+        if self.last_speaker == "agent" or self.last_speaker is None:
+            # Clear previous user transcript
+            self.current_user_transcript = text
+            
+            # Record that user is now speaking
+            self.last_speaker = "user"
+            
+            print(f"New user turn: {text}")
+        else:
+            # Continue accumulating the current user message
+            self.current_user_transcript += " " + text
+            print(f"Continuing user message: {text}")
+        
+        # We'll only save to the database when the agent starts speaking
     
     def _handle_agent_response(self, response: str):
         """
@@ -107,15 +124,35 @@ class AnthropicDeepgramAgent:
         Args:
             response: The agent's response text
         """
-        # Save the agent's response to the database
-        add_conversation_message(self.session_id, "agent", response)
+        # If last speaker was the user, this is the beginning of an agent turn
+        if self.last_speaker == "user":
+            # First, save the complete user turn to the database
+            print(f"Saving complete user transcript: {self.current_user_transcript}")
+            add_conversation_message(self.session_id, "user", self.current_user_transcript)
+            
+            # Start a new agent turn
+            self.current_agent_response = response
+            self.last_speaker = "agent"
+            
+            print(f"New agent turn: {response}")
+        else:
+            # Continue accumulating the current agent response
+            self.current_agent_response += " " + response
+            print(f"Continuing agent response: {response}")
+            
+            # If this is a continuation, we don't need to do any additional processing yet
+            return
+        
+        # Save the initial agent response to the database
+        # We'll update this if we get more partials
+        add_conversation_message(self.session_id, "agent", self.current_agent_response)
         
         # Update the design state in a background thread to keep it non-blocking
         import threading
         
         def update_design_state_thread():
             try:
-                # Update the design state
+                # Update the design state based on the complete conversation
                 updated_state = self.design_agent.process(self.session_id, {})
                 
                 # Create a new event loop for this thread to handle async operations
@@ -173,6 +210,17 @@ class AnthropicDeepgramAgent:
     
     async def stop(self):
         """Stop the integrated agent session."""
+        # Before stopping, make sure we save any accumulated but unsaved agent response
+        if self.last_speaker == "agent" and self.current_agent_response:
+            print(f"Saving final agent response on stop: {self.current_agent_response}")
+            add_conversation_message(self.session_id, "agent", self.current_agent_response)
+        
+        # Reset the conversation buffers
+        self.current_user_transcript = ""
+        self.current_agent_response = ""
+        self.last_speaker = None
+        
+        # Stop the Deepgram conversation
         await self.deepgram_agent.stop_conversation()
     
     # Text input is not supported directly

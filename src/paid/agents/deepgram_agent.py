@@ -47,6 +47,7 @@ class DeepgramConversationAgent:
         
         # Session state
         self.is_resuming_session = is_resuming_session
+        self.last_agent_response = None  # Track the latest agent response
     
     def register_callbacks(self, 
                           on_transcript: Callable[[str], None],
@@ -168,6 +169,9 @@ class DeepgramConversationAgent:
                 # Handle agent message
                 # print(f"Agent response: {content}")
                 
+                # Track the most recent agent response
+                self.last_agent_response = content
+                
                 # Call the agent response callback if registered
                 if self.on_agent_response_callback:
                     self.on_agent_response_callback(content)
@@ -175,6 +179,16 @@ class DeepgramConversationAgent:
     def _on_user_started_speaking(self, connection=None, event=None, **kwargs):
         """Handle user started speaking events."""
         print("User started speaking")
+        
+        # If we were previously capturing an agent response, save the final version
+        if self.on_transcript_callback and hasattr(self, 'last_agent_response') and self.last_agent_response:
+            print("User started speaking - finalizing previous agent response")
+            # Simulate a final agent response to trigger turn change in the parent agent
+            if self.on_agent_response_callback:
+                self.on_agent_response_callback(self.last_agent_response)
+            
+            # Reset the tracked agent response
+            self.last_agent_response = None
     
     def _on_agent_thinking(self, connection=None, agent_thinking=None, **kwargs):
         """Handle agent thinking state."""
