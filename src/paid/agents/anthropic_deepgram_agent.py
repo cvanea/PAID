@@ -114,37 +114,34 @@ class AnthropicDeepgramAgent:
         """
         # Save the agent's response to the database
         add_conversation_message(self.session_id, "agent", response)
-        print(f"Added agent response to database: {response[:50]}...")
         
-        # Update the design state based on the new conversation
-        # We need to handle the event loop carefully
-        try:
-            # Get the current event loop or create a new one if necessary
+        # Update the design state in a background thread to keep it non-blocking
+        import threading
+        
+        def update_design_state_thread():
             try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                # No running event loop, create a new one
+                # Update the design state
+                updated_state = self.design_agent.process(self.session_id, {})
+                
+                # Create a new event loop for this thread to handle async operations
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-            
-            # Create the task in the current loop
-            loop.create_task(self._update_design_state())
-        except Exception as e:
-            print(f"Error scheduling design state update: {e}")
+                
+                try:
+                    # Execute the refresh instructions method
+                    loop.run_until_complete(self._refresh_system_instructions())
+                finally:
+                    # Close the loop
+                    loop.close()
+            except Exception as e:
+                print(f"Error updating design state: {e}")
+        
+        # Start a background thread to handle the update
+        thread = threading.Thread(target=update_design_state_thread)
+        thread.daemon = True  # Allow the program to exit even if this thread is running
+        thread.start()
     
-    async def _update_design_state(self):
-        """Update the design state after new conversation occurs."""
-        try:
-            # Process the current conversation to update the design state
-            # The design agent will analyze the conversation and update the design state
-            updated_state = self.design_agent.process(self.session_id, {})
-            print("Updated design state based on conversation")
-            
-            # After the design state has been updated, automatically refresh system instructions
-            # to include the latest design state
-            await self._refresh_system_instructions()
-        except Exception as e:
-            print(f"Error updating design state: {e}")
+    # The original async update method is no longer used
     
     async def _refresh_system_instructions(self):
         """Refresh the system instructions with the latest from the database."""

@@ -50,6 +50,7 @@ def update_design_state(session_id: str, state: Dict[str, Any], instructions: st
     design_state.state = state
     if instructions is not None:
         design_state.instructions = instructions
+    
     design_state.save()
     
     return design_state

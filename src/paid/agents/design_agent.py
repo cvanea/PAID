@@ -3,7 +3,7 @@ from typing import Dict, Any, List
 
 from paid.agents.base import BaseAgent
 from paid.database import get_conversation_history, update_design_state, get_latest_design_state, get_latest_instructions
-from paid.defaults import DEFAULT_DESIGN_STATE
+from paid.defaults import DEFAULT_DESIGN_STATE, DEFAULT_INSTRUCTIONS_TEMPLATE
 
 class DesignAgent(BaseAgent):
     """
@@ -75,7 +75,7 @@ class DesignAgent(BaseAgent):
             print("Updated voice agent instructions")
         
         # Save the updated design state and instructions to the database
-        update_design_state(session_id, updated_state, instructions)
+        result = update_design_state(session_id, updated_state, instructions)
         
         return updated_state
     
@@ -166,27 +166,8 @@ class DesignAgent(BaseAgent):
         # Format the current state as a readable string
         design_state_json = json.dumps(design_state, indent=2)
         
-        # Default instructions to use if no previous ones exist
-        default_instructions = """
-        You are PAID (Product AI Designer), a voice design partner assistant that helps users think through their product design ideas.
-        Your goal is to ask thoughtful questions that help the user clarify their design concept and requirements.
-        
-        Here is the current state of the design:
-        {design_state_json}
-        
-        Focus on understanding and enhancing:
-        1. The core problem the design aims to solve
-        2. The target users and their needs
-        3. Key features and functionality
-        4. User flows and interactions
-        5. Visual requirements and constraints
-        
-        Based on the current state, identify gaps and ask questions to fill them.
-        Be conversational, encouraging, and concise in your responses. Ask one focused question at a time.
-        Avoid overwhelming the user with too many questions at once.
-        
-        Your responses will be spoken aloud to the user, so keep them clear and concise.
-        """
+        # Get default instructions from the centralized defaults
+        default_instructions = DEFAULT_INSTRUCTIONS_TEMPLATE
         
         current_instructions = previous_instructions or default_instructions
         
