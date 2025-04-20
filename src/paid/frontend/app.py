@@ -17,10 +17,31 @@ from paid.agents.anthropic_deepgram_agent import AnthropicDeepgramAgent
 from paid.frontend.export import generate_md_from_design_state
 
 
-def initialize_session() -> str:
-    """Initialize a session or get the current one."""
+def initialize_session(existing_session_id: str = None) -> str:
+    """
+    Initialize a session or get the current one.
+    
+    Args:
+        existing_session_id: Optional session ID to resume an existing session.
+        
+    Returns:
+        str: The session ID.
+    """
+    # If an existing session ID is provided, use it
+    if existing_session_id:
+        # Check if the session exists
+        from paid.database import get_session
+        if get_session(existing_session_id):
+            st.session_state.session_id = existing_session_id
+            st.session_state.is_resumed_session = True
+            return existing_session_id
+        else:
+            st.error(f"Session with ID {existing_session_id} not found. Creating a new session.")
+    
+    # Otherwise, create a new session or use the existing one
     if "session_id" not in st.session_state:
         st.session_state.session_id = create_session()
+        st.session_state.is_resumed_session = False
     
     return st.session_state.session_id
 
@@ -278,13 +299,14 @@ def display_user_flows(session_id: str) -> None:
                 render_mermaid(result["diagram_code"])
 
 
-async def start_live_voice_session(session_id: str, custom_instructions: str = None):
+async def start_live_voice_session(session_id: str, custom_instructions: str = None, is_resuming: bool = False):
     """
     Start a live voice conversation session.
     
     Args:
         session_id: The database session ID
         custom_instructions: Optional custom instructions to use instead of default template
+        is_resuming: Whether this is resuming a previous session
     """
     try:
         # Initialize the integrated agent with custom instructions if provided
@@ -293,13 +315,32 @@ async def start_live_voice_session(session_id: str, custom_instructions: str = N
         # Store the agent in session state
         st.session_state.voice_agent = agent
         
+        # For resuming sessions, we want to use a special welcome message
+        if is_resuming:
+            # We'll use the default instructions but add a welcoming message
+            from paid.database import get_latest_instructions
+            instructions = get_latest_instructions(session_id)
+            
+            if instructions:
+                # Add welcoming message for resumed sessions
+                resume_welcome = "\nThis is a resumed session. Start by welcoming the user back and briefly summarize what you've discussed so far. Then, continue the design discussion focusing on areas that need more exploration.\n"
+                
+                if "CUSTOM GUIDANCE:" in instructions:
+                    # Add to existing custom guidance
+                    instructions += "\n- Welcome the user back and continue the design discussion."
+                else:
+                    # Create new custom guidance
+                    instructions += "\nCUSTOM GUIDANCE:\n- Welcome the user back and continue the design discussion."
+                
+                custom_instructions = instructions
+        
         # Get the current state and start the agent
         # The agent will automatically use the latest design state from the database
-        success = await agent.start()
+        success = await agent.start(custom_instructions)
         
         if success:
             st.session_state.voice_active = True
-            return "Voice session started successfully"
+            return "Voice session started successfully" + (" (Resumed)" if is_resuming else "")
         else:
             return "Failed to start voice session"
     except Exception as e:
@@ -319,8 +360,13 @@ async def stop_live_voice_session():
 # Text input to the voice agent is not currently supported
 # This functionality has been removed as the Deepgram agent only works with microphone input
 
-def main():
-    """Main Streamlit application."""
+def main(session_id_to_resume: str = None):
+    """
+    Main Streamlit application.
+    
+    Args:
+        session_id_to_resume: Optional session ID to resume.
+    """
     st.set_page_config(
         page_title="PAID - Product AI Designer",
         page_icon="🎨",
@@ -330,8 +376,8 @@ def main():
     # Initialize database
     setup_database()
     
-    # Initialize or get session
-    session_id = initialize_session()
+    # Initialize or get session (resuming if a session ID is provided)
+    session_id = initialize_session(session_id_to_resume)
     
     # Initialize session state
     if "messages" not in st.session_state:
@@ -446,9 +492,16 @@ def main():
                         
                         with col_start:
                             if not st.session_state.voice_active:
-                                if st.button("Start Voice Session", key="start_voice"):
+                                # Check if we're resuming an existing session
+                                is_resuming = hasattr(st.session_state, 'is_resumed_session') and st.session_state.is_resumed_session
+                                
+                                button_label = "Resume Voice Session" if is_resuming else "Start Voice Session"
+                                if st.button(button_label, key="start_voice"):
                                     # Run the async function
-                                    result = asyncio.run(start_live_voice_session(session_id))
+                                    result = asyncio.run(start_live_voice_session(
+                                        session_id, 
+                                        is_resuming=is_resuming
+                                    ))
                                     st.info(result)
                                     st.rerun()
                         
@@ -517,4 +570,13 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # Check for command-line arguments to support resuming a session
+    import sys
+    session_id_arg = None
+    
+    if len(sys.argv) > 1:
+        # The first argument is the session ID to resume
+        session_id_arg = sys.argv[1]
+        print(f"Resuming session: {session_id_arg}")
+    
+    main(session_id_arg)
