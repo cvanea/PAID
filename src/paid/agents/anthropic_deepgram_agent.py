@@ -21,16 +21,20 @@ class AnthropicDeepgramAgent:
     to provide a cohesive voice design assistant experience.
     """
     
-    def __init__(self, session_id: str, custom_instructions: str = None):
+    def __init__(self, session_id: str, custom_instructions: str = None, is_resuming: bool = False):
         """
         Initialize the integrated agent.
         
         Args:
             session_id: The database session ID to associate conversations with
             custom_instructions: Optional custom instructions template to use instead of default
+            is_resuming: Whether this is resuming a previous session
         """
         self.session_id = session_id
-        self.deepgram_agent = DeepgramConversationAgent()
+        self.is_resuming = is_resuming
+        
+        # Create the Deepgram agent with the resuming flag
+        self.deepgram_agent = DeepgramConversationAgent(is_resuming_session=is_resuming)
         self.design_agent = DesignAgent()
         
         # Store custom instructions if provided

@@ -17,8 +17,13 @@ class DeepgramConversationAgent:
     This provides a more advanced implementation than the basic VoiceAgent.
     """
     
-    def __init__(self):
-        """Initialize the Deepgram conversation agent."""
+    def __init__(self, is_resuming_session=False):
+        """
+        Initialize the Deepgram conversation agent.
+        
+        Args:
+            is_resuming_session: Whether this agent is resuming a previous session
+        """
         # Initialize Deepgram client with appropriate options for live audio
         config = DeepgramClientOptions(options={
             "keepalive": "true",
@@ -39,6 +44,9 @@ class DeepgramConversationAgent:
         self.connection = None
         self.is_listening = False
         self.session_id = None
+        
+        # Session state
+        self.is_resuming_session = is_resuming_session
     
     def register_callbacks(self, 
                           on_transcript: Callable[[str], None],
@@ -132,8 +140,13 @@ class DeepgramConversationAgent:
         """Handle settings applied confirmation."""
         print(f"Deepgram settings applied: {settings_applied}")
         
-        # After settings are applied, we can send an initial welcome message
-        welcome_message = "Hello! I'm your product design assistant. How can I help you design your product today?"
+        # After settings are applied, send an initial welcome message
+        # Use a different welcome message for resumed sessions
+        if self.is_resuming_session:
+            welcome_message = "Welcome back, let's continue our design discussion."
+        else:
+            welcome_message = "Hello! I'm your product design assistant. How can I help you design your product today?"
+            
         self._inject_agent_message(welcome_message)
     
     def _on_conversation_text(self, connection=None, conversation_text=None, **kwargs):

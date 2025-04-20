@@ -309,33 +309,17 @@ async def start_live_voice_session(session_id: str, custom_instructions: str = N
         is_resuming: Whether this is resuming a previous session
     """
     try:
-        # Initialize the integrated agent with custom instructions if provided
-        agent = AnthropicDeepgramAgent(session_id, custom_instructions)
+        # Initialize the integrated agent with custom instructions and resuming flag
+        agent = AnthropicDeepgramAgent(
+            session_id=session_id, 
+            custom_instructions=custom_instructions,
+            is_resuming=is_resuming
+        )
         
         # Store the agent in session state
         st.session_state.voice_agent = agent
         
-        # For resuming sessions, we want to use a special welcome message
-        if is_resuming:
-            # We'll use the default instructions but add a welcoming message
-            from paid.database import get_latest_instructions
-            instructions = get_latest_instructions(session_id)
-            
-            if instructions:
-                # Add welcoming message for resumed sessions
-                resume_welcome = "\nThis is a resumed session. Start by welcoming the user back and briefly summarize what you've discussed so far. Then, continue the design discussion focusing on areas that need more exploration.\n"
-                
-                if "CUSTOM GUIDANCE:" in instructions:
-                    # Add to existing custom guidance
-                    instructions += "\n- Welcome the user back and continue the design discussion."
-                else:
-                    # Create new custom guidance
-                    instructions += "\nCUSTOM GUIDANCE:\n- Welcome the user back and continue the design discussion."
-                
-                custom_instructions = instructions
-        
-        # Get the current state and start the agent
-        # The agent will automatically use the latest design state from the database
+        # Start the agent - welcome message will be handled by the agent based on resuming flag
         success = await agent.start(custom_instructions)
         
         if success:
