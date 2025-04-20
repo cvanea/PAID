@@ -77,7 +77,7 @@ class AnthropicDeepgramAgent:
     
     def _build_default_instructions(self) -> str:
         """
-        Build default system instructions with the current design state.
+        Build system instructions with the current design state and any custom instructions.
         
         Returns:
             str: The formatted system instructions
@@ -88,9 +88,14 @@ class AnthropicDeepgramAgent:
         # Format the design state as a pretty-printed JSON string
         design_state_json = json.dumps(design_state, indent=2)
         
-        # Insert the design state into the template
-        # Using the centralized default template
-        instructions = DEFAULT_INSTRUCTIONS_TEMPLATE.format(design_state_json=design_state_json)
+        # Get any custom instructions from the database
+        custom_instructions = get_latest_instructions(self.session_id) or ""
+        
+        # Insert the design state and custom instructions into the template
+        instructions = DEFAULT_INSTRUCTIONS_TEMPLATE.format(
+            design_state_json=design_state_json,
+            custom_instructions=custom_instructions
+        )
         
         return instructions
     

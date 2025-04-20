@@ -109,4 +109,6 @@ JSON STRUCTURE:
 
 CURRENT STATE:
 {design_state_json}
+
+{custom_instructions}
 """

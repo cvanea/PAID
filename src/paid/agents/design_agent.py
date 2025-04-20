@@ -26,9 +26,9 @@ class DesignAgent(BaseAgent):
         # Get the current design state
         current_state = get_latest_design_state(session_id) or self._create_initial_state()
         
-        # Get the current instructions
+        # Get the current custom instructions
         from paid.database import get_latest_instructions
-        previous_instructions = get_latest_instructions(session_id)
+        previous_custom_instructions = get_latest_instructions(session_id)
         
         # Get conversation history
         conversation = get_conversation_history(session_id)
@@ -49,8 +49,8 @@ class DesignAgent(BaseAgent):
         # Extract the JSON from the response
         updated_state = self._extract_json(design_response.content[0].text)
         
-        # Now, generate instructions for the voice agent based on the updated design state
-        instruction_prompt = self._create_instruction_prompt(updated_state, conversation, previous_instructions)
+        # Now, generate custom instructions for the voice agent based on the updated design state
+        instruction_prompt = self._create_instruction_prompt(updated_state, conversation, previous_custom_instructions)
         
         instruction_response = self.client.messages.create(
             model=self.model,
@@ -61,21 +61,21 @@ class DesignAgent(BaseAgent):
             ]
         )
         
-        # Extract instructions from the response
-        instruction_text = instruction_response.content[0].text.strip()
+        # Extract custom instructions from the response
+        custom_instruction_text = instruction_response.content[0].text.strip()
         
         # Check if the response indicates no change is needed
-        if instruction_text.startswith("NO_CHANGE:"):
-            print(f"No change to instructions: {instruction_text}")
-            # Use previous instructions if no change is needed
-            instructions = previous_instructions
+        if custom_instruction_text.startswith("NO_CHANGE:"):
+            print(f"No change to custom instructions: {custom_instruction_text}")
+            # Use previous custom instructions if no change is needed
+            custom_instructions = previous_custom_instructions or ""
         else:
-            # Use the new instructions
-            instructions = instruction_text
-            print("Updated voice agent instructions")
+            # Use the new custom instructions
+            custom_instructions = custom_instruction_text
+            print("Updated custom voice agent instructions")
         
-        # Save the updated design state and instructions to the database
-        result = update_design_state(session_id, updated_state, instructions)
+        # Save the updated design state and custom instructions to the database
+        result = update_design_state(session_id, updated_state, custom_instructions)
         
         return updated_state
     
@@ -153,12 +153,13 @@ class DesignAgent(BaseAgent):
         
     def _create_instruction_prompt(self, design_state: Dict[str, Any], conversation: List[Dict[str, Any]], previous_instructions: str = None) -> Dict[str, str]:
         """
-        Create a prompt for Claude to potentially update voice agent instructions based on the design state.
+        Create a prompt for Claude to generate custom instructions based on the design state.
+        These custom instructions will be appended to the default instructions template.
         
         Args:
             design_state: The current design state.
             conversation: The conversation history.
-            previous_instructions: Previous instructions for the voice agent, if available.
+            previous_instructions: Previous custom instructions for the voice agent, if available.
             
         Returns:
             Dict[str, str]: Dictionary with "system" and "user" prompts.
@@ -166,10 +167,10 @@ class DesignAgent(BaseAgent):
         # Format the current state as a readable string
         design_state_json = json.dumps(design_state, indent=2)
         
-        # Get default instructions from the centralized defaults
-        default_instructions = DEFAULT_INSTRUCTIONS_TEMPLATE
-        
-        current_instructions = previous_instructions or default_instructions
+        # Extract previous custom instructions if they exist
+        previous_custom = ""
+        if previous_instructions and "CUSTOM GUIDANCE:" in previous_instructions:
+            previous_custom = previous_instructions
         
         # Get the last few messages to understand current context
         recent_messages = conversation[-5:] if len(conversation) > 5 else conversation
@@ -179,13 +180,14 @@ class DesignAgent(BaseAgent):
             recent_conversation += f"{speaker}: {message['message']}\n\n"
         
         system_prompt = """
-        You are an expert at creating instructions for voice agents. Your job is to decide whether the current
-        instructions for a voice design assistant need to be updated based on the current design state and conversation.
+        You are an expert at creating targeted instructions for voice agents. Your job is to generate ONLY the
+        contextual guidance needed to supplement the existing instructions for a voice design assistant.
         
-        It's important to maintain consistency in the agent's behavior, so only update the instructions if necessary
-        to better guide the conversation based on significant changes in the design state or conversation direction.
-        
-        Do not make arbitrary changes to the instructions - they should evolve gradually and purposefully.
+        Important:
+        - DO NOT rewrite the entire instructions set
+        - ONLY provide the specific contextual guidance based on the current design state and conversation
+        - Keep your additions concise, focused, and directly relevant to the current state
+        - Your guidance should help the agent navigate the next part of the conversation effectively
         """
         
         user_prompt = f"""
@@ -197,24 +199,28 @@ class DesignAgent(BaseAgent):
         Recent conversation context:
         {recent_conversation}
         
-        Current agent instructions:
+        Previous custom guidance (if any):
         ```
-        {current_instructions}
+        {previous_custom}
         ```
         
-        Based on the current design state and conversation context, decide if the agent instructions need to be updated.
+        Based on the current design state and conversation context, generate ONLY the custom guidance
+        needed to supplement the default instructions.
         
         If NO UPDATES are needed, respond with:
         "NO_CHANGE: <reason why no changes are needed>"
         
-        If updates ARE needed, provide the complete new instructions with your changes. They should be similar to the
-        current instructions but with specific improvements to better guide the agent. Make sure to include:
-        1. The agent's role as PAID (Product AI Designer)
-        2. A placeholder for the design state JSON {design_state_json}
-        3. Guidance on what to focus on next based on the current state
-        4. Clear instructions on conversational style
+        If updates ARE needed, provide ONLY the contextual guidance that should be appended to the
+        default instructions. Format your response like this:
         
-        The new instructions should be in a format ready to be used directly as the system instructions for the voice agent.
+        CUSTOM GUIDANCE:
+        - Focus on exploring <specific area> next because <reason>
+        - Prioritize questions about <specific topic> to complete <specific section>
+        - Avoid discussing <specific topic> until <prerequisite> is established
+        - <any other specific guidance based on the current state>
+        
+        Your guidance should be 3-5 bullet points maximum, focused on helping the agent navigate
+        the conversation based on what's already been discussed and what needs attention next.
         """
         
         return {
