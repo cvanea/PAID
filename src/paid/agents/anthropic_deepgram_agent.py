@@ -64,27 +64,13 @@ class AnthropicDeepgramAgent:
     
     def _get_system_instructions(self) -> str:
         """
-        Get the current system instructions from the database or build default ones.
+        Get the complete system instructions by combining:
+        1. Core default instructions
+        2. Latest design state JSON
+        3. Any custom instructions from the database
         
         Returns:
-            str: The system instructions to use
-        """
-        # Try to get the latest instructions from the database
-        instructions = get_latest_instructions(self.session_id)
-        
-        if instructions:
-            # Use the existing instructions from the database
-            return instructions
-        else:
-            # If no instructions exist, build default ones using the template
-            return self._build_default_instructions()
-    
-    def _build_default_instructions(self) -> str:
-        """
-        Build system instructions with the current design state and any custom instructions.
-        
-        Returns:
-            str: The formatted system instructions
+            str: The complete system instructions to use
         """
         # Get the current design state
         design_state = self._get_current_design_state()
@@ -95,7 +81,7 @@ class AnthropicDeepgramAgent:
         # Get any custom instructions from the database
         custom_instructions = get_latest_instructions(self.session_id) or ""
         
-        # Insert the design state and custom instructions into the template
+        # Combine core defaults with design state and custom instructions
         instructions = DEFAULT_INSTRUCTIONS_TEMPLATE.format(
             design_state_json=design_state_json,
             custom_instructions=custom_instructions
@@ -167,21 +153,15 @@ class AnthropicDeepgramAgent:
         except Exception as e:
             print(f"Error refreshing system instructions: {e}")
     
-    async def start(self, custom_session_instructions: str = None):
+    async def start(self):
         """
         Start the integrated agent session.
-        
-        Args:
-            custom_session_instructions: Optional custom instructions to use for this session only
         
         Returns:
             bool: True if the session started successfully, False otherwise
         """
-        # Use the provided session instructions or get from database/default
-        if custom_session_instructions:
-            system_instructions = custom_session_instructions
-        else:
-            system_instructions = self._get_system_instructions()
+        # Always use the complete system instructions (core defaults + design state + custom instructions)
+        system_instructions = self._get_system_instructions()
         
         # Start the Deepgram agent with our instructions
         success = await self.deepgram_agent.start_conversation(

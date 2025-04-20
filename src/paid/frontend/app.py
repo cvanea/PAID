@@ -299,20 +299,18 @@ def display_user_flows(session_id: str) -> None:
                 render_mermaid(result["diagram_code"])
 
 
-async def start_live_voice_session(session_id: str, custom_instructions: str = None, is_resuming: bool = False):
+async def start_live_voice_session(session_id: str, is_resuming: bool = False):
     """
     Start a live voice conversation session.
     
     Args:
         session_id: The database session ID
-        custom_instructions: Optional custom instructions to use instead of default template
         is_resuming: Whether this is resuming a previous session
     """
     try:
-        # Initialize the integrated agent with custom instructions and resuming flag
+        # Initialize the integrated agent with resuming flag
         agent = AnthropicDeepgramAgent(
             session_id=session_id, 
-            custom_instructions=custom_instructions,
             is_resuming=is_resuming
         )
         
@@ -320,7 +318,7 @@ async def start_live_voice_session(session_id: str, custom_instructions: str = N
         st.session_state.voice_agent = agent
         
         # Start the agent - welcome message will be handled by the agent based on resuming flag
-        success = await agent.start(custom_instructions)
+        success = await agent.start()
         
         if success:
             st.session_state.voice_active = True
@@ -483,7 +481,7 @@ def main(session_id_to_resume: str = None):
                                 if st.button(button_label, key="start_voice"):
                                     # Run the async function
                                     result = asyncio.run(start_live_voice_session(
-                                        session_id, 
+                                        session_id=session_id,
                                         is_resuming=is_resuming
                                     ))
                                     st.info(result)
