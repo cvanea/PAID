@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import json
 import time
 import asyncio
@@ -12,7 +13,7 @@ from paid.database import (
     get_latest_design_state,
     get_conversation_history
 )
-from paid.agents import MermaidAgent
+from paid.agents.visual_agents import UserFlowDiagramManager
 from paid.agents.anthropic_deepgram_agent import AnthropicDeepgramAgent
 from paid.frontend.export import generate_md_from_design_state
 
@@ -47,12 +48,39 @@ def initialize_session(existing_session_id: str = None) -> str:
 
 
 def render_mermaid(diagram_code: str) -> None:
-    """Render a Mermaid diagram in Streamlit."""
-    st.markdown(f"""
-    ```mermaid
-    {diagram_code}
-    ```
-    """)
+    """Render a Mermaid diagram in Streamlit using HTML components."""
+    # Clean up any extra whitespace
+    clean_code = diagram_code.strip()
+    
+    # Print debug info
+    print(f"Rendering mermaid diagram: {clean_code[:50]}...")
+    
+    # Check if diagram code starts with a valid mermaid syntax
+    if not any(clean_code.startswith(prefix) for prefix in ('flowchart', 'graph', 'sequenceDiagram')):
+        print("Warning: Diagram code doesn't start with a valid mermaid prefix")
+        # Add a flowchart prefix if missing
+        if not clean_code.startswith('flowchart') and not clean_code.startswith('graph'):
+            clean_code = 'graph LR\n' + clean_code
+    
+    # Render the diagram using HTML component
+    try:
+        components.html(
+            f"""
+            <pre class="mermaid">
+                {clean_code}
+            </pre>
+
+            <script type="module">
+                import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+                mermaid.initialize({{ startOnLoad: true }});
+            </script>
+            """,
+            height=300  # Adjust height as needed
+        )
+    except Exception as e:
+        print(f"Error rendering mermaid diagram: {str(e)}")
+        # Fallback to showing the code
+        st.code(clean_code, language=None)
 
 
 def display_conversation(session_id: str) -> None:
@@ -210,15 +238,25 @@ def display_design_state(session_id: str) -> None:
             if ux.get("summary"):
                 st.markdown(ux["summary"])
             
-            # User Flows (will be visualized with Mermaid later)
+            # User Flows with Mermaid diagrams
             if ux.get("userFlows") and len(ux["userFlows"]) > 0:
                 st.markdown("### User Flows")
-                for flow in ux["userFlows"]:
+                
+                # Initialize flow diagram manager if not in session state
+                if "flow_diagram_manager" not in st.session_state:
+                    st.session_state.flow_diagram_manager = UserFlowDiagramManager(session_id)
+                
+                # Generate diagrams if user flows have changed
+                flow_diagrams = st.session_state.flow_diagram_manager.generate_flow_diagrams(ux["userFlows"])
+                
+                # Display each user flow with its diagram if available
+                for i, flow in enumerate(ux["userFlows"]):
                     if flow.get("flowName"):
                         with st.expander(flow["flowName"], expanded=False):
                             if flow.get("description"):
                                 st.markdown(flow["description"])
                             
+                            # Display steps
                             if flow.get("steps") and len(flow["steps"]) > 0:
                                 st.markdown("#### Steps")
                                 for step in flow["steps"]:
@@ -226,6 +264,11 @@ def display_design_state(session_id: str) -> None:
                                         st.markdown(f"**{step['step']}. {step['name']}**")
                                         if "description" in step:
                                             st.markdown(step["description"])
+                            
+                            # Display the mermaid diagram if available
+                            if i in flow_diagrams:
+                                st.markdown("#### Visual Flow")
+                                render_mermaid(flow_diagrams[i])
         
     else:
         # Fallback to original display for old format
@@ -271,32 +314,6 @@ def display_design_state(session_id: str) -> None:
                     
                     if "priority" in feature:
                         st.markdown(f"**Priority:** {feature['priority']}")
-
-
-def display_user_flows(session_id: str) -> None:
-    """Display user flows using Mermaid diagrams."""
-    design_state = get_latest_design_state(session_id)
-    
-    if not design_state or "user_flows" not in design_state or not design_state["user_flows"]:
-        return
-    
-    st.subheader("User Flows")
-    
-    # Generate diagram for each user flow
-    mermaid_agent = MermaidAgent()
-    
-    for i, flow in enumerate(design_state["user_flows"]):
-        with st.expander(flow.get("name", f"Flow {i+1}")):
-            st.write(flow.get("description", ""))
-            
-            # Generate and display diagram
-            with st.spinner("Generating diagram..."):
-                result = mermaid_agent.process(session_id, {
-                    "diagram_type": "flowchart",
-                    "design_state": {"user_flows": [flow]}
-                })
-                
-                render_mermaid(result["diagram_code"])
 
 
 async def start_live_voice_session(session_id: str, is_resuming: bool = False):

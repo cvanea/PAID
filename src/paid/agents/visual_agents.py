@@ -1,4 +1,7 @@
 from typing import Dict, Any, List, Optional
+import json
+import re
+import hashlib
 
 from paid.agents.base import BaseAgent
 from paid.database import get_latest_design_state
@@ -63,51 +66,67 @@ class MermaidAgent(BaseAgent):
         Returns:
             Dict[str, str]: Dictionary with "system" and "user" prompts.
         """
-        import json
-        
         # Format the design state as a readable string
         design_context = json.dumps(design_state, indent=2)
         
+        # Extract the flow title if available
+        flow_title = "User Flow"
+        if "flowName" in design_state:
+            flow_title = design_state["flowName"]
+        print(f"Creating prompt for flow: {flow_title}")
+            
         system_prompt = f"""
-        You are a diagram generation assistant. Your task is to create a {diagram_type} diagram using Mermaid syntax based on the provided design information.
+        Create a simplified mermaid diagram that visualizes ONLY the main steps in the following user flow:
+        {design_context}
         
-        Mermaid is a markdown-based diagramming tool. Here's how to create a {diagram_type} diagram:
-        
-        For flowcharts:
-        ```mermaid
-        flowchart TD
-            A[Start] --> B{Decision}
-            B -- Yes --> C[Action]
-            B -- No --> D[Alternative Action]
-            C --> E[End]
-            D --> E
+        Use this specific mermaid format:
+        ```
+        graph LR
+            title["{flow_title}"]
+            style title fill:#f9f,stroke:#333,stroke-width:2px
+            
+            1[First Step] --> 2[Second Step]
+            2 --> 3[Third Step]
         ```
         
-        For sequence diagrams:
-        ```mermaid
-        sequenceDiagram
-            participant User
-            participant System
-            User->>System: Action
-            System->>User: Response
-        ```
+        Follow these rules:
+        - Use LR (left to right) direction
+        - Create a SIMPLE linear flow showing just the main 4-6 steps
+        - Start with a title node showing "{flow_title}"
+        - Use step numbers as node IDs (1, 2, 3, etc.)
+        - Use square brackets [ ] for all steps
+        - Make step descriptions very concise (3-5 words max)
+        - NO complex branching or decision points
+        - NO detailed annotations or explanations
+        - IMPORTANT: Diagram should fit on one line horizontally
         
-        Generate a clear, well-structured diagram that captures the user flows or interactions described in the design state.
-        Only return the Mermaid code block, nothing else.
+        Respond ONLY with the complete mermaid code, nothing else.
         """
         
-        user_flows = design_state.get("user_flows", [])
-        features = design_state.get("features", [])
-        users = design_state.get("users", [])
-        
+        # Format for "userFlows" data in the new format
         user_prompt = f"""
         Design Information:
         ```json
         {design_context}
         ```
         
-        Please generate a {diagram_type} diagram using Mermaid syntax that visualizes the user flows or system interactions from this design information.
-        Only return the Mermaid code block.
+        Please generate a {diagram_type} diagram using Mermaid syntax that visualizes the user flow steps.
+        
+        The flow data is structured with a "flowName" and a list of "steps", where each step has:
+        - "step": the step number/order (1, 2, 3, etc.)
+        - "name": the name of the step
+        - "description": a longer description of what happens
+        
+        For your diagram:
+        1. Use 'graph LR' (left to right) orientation
+        2. Create a node for each step using the step number as ID (1, 2, 3, etc.)
+        3. Each node should be labeled with the step name: 1[First Step Name]
+        4. Connect the steps in sequence: 1 --> 2 --> 3
+        5. Make sure all steps are connected in the correct numerical order
+        
+        Your response MUST start with 'graph LR' and contain only valid Mermaid syntax.
+        Do not include ```mermaid or ``` tags in your response.
+        Return ONLY the mermaid code with no other text.
         """
         
         return {
@@ -125,22 +144,153 @@ class MermaidAgent(BaseAgent):
         Returns:
             str: The extracted Mermaid code.
         """
-        import re
+        # Print first part of response for debugging
+        print(f"Raw response from the agent: {text}")
         
         # Try to find code between triple backticks with 'mermaid' tag
         code_match = re.search(r"```mermaid\s*([\s\S]*?)\s*```", text)
         
         if code_match:
-            return code_match.group(1).strip()
+            extracted_code = code_match.group(1).strip()
+            print(f"Found mermaid code block: {extracted_code[:50]}...")
+            return extracted_code
         
         # If no mermaid-specific code block found, try to find any code block
         code_match = re.search(r"```\s*([\s\S]*?)\s*```", text)
         
         if code_match:
-            return code_match.group(1).strip()
+            extracted_code = code_match.group(1).strip()
+            print(f"Found general code block: {extracted_code[:50]}...")
+            
+            # If code starts with typical mermaid syntax, use it
+            if any(extracted_code.startswith(prefix) for prefix in ('flowchart', 'graph', 'sequenceDiagram')):
+                return extracted_code
         
-        # If no code blocks found, return the entire text
-        return text.strip()
+        # If the entire text looks like mermaid code, use it
+        if any(text.strip().startswith(prefix) for prefix in ('flowchart', 'graph', 'sequenceDiagram')):
+            print("Text appears to be raw mermaid code")
+            return text.strip()
+            
+        # If no code blocks found, return a default flowchart
+        print("No valid mermaid code found, returning default flowchart")
+        return """flowchart TD
+    A[Start] --> B[Step 1]
+    B --> C[Step 2] 
+    C --> D[End]"""
+
+
+class UserFlowDiagramManager:
+    """Manages the generation and caching of user flow diagrams."""
+    
+    def __init__(self, session_id: str):
+        """
+        Initialize the manager for a specific session.
+        
+        Args:
+            session_id: The current session ID
+        """
+        self.session_id = session_id
+        self.mermaid_agent = MermaidAgent()
+        self.flow_diagrams = {}
+        self.current_flows_hash = None
+    
+    def get_user_flows_hash(self, user_flows):
+        """
+        Generate a hash for user flows to detect changes.
+        
+        Args:
+            user_flows: List of user flow dictionaries
+            
+        Returns:
+            str: A hash string representing the current state of user flows
+        """
+        if not user_flows:
+            return "empty"
+        
+        # Sort the dict keys to ensure consistent hashing
+        sorted_json = json.dumps(user_flows, sort_keys=True)
+        return hashlib.md5(sorted_json.encode()).hexdigest()
+    
+    def has_flows_changed(self, user_flows):
+        """
+        Check if user flows have changed since last check.
+        
+        Args:
+            user_flows: Current user flows
+            
+        Returns:
+            bool: True if flows have changed, False otherwise
+        """
+        new_hash = self.get_user_flows_hash(user_flows)
+        has_changed = new_hash != self.current_flows_hash
+        self.current_flows_hash = new_hash
+        return has_changed
+    
+    def generate_flow_diagrams(self, user_flows):
+        """
+        Generate diagrams for all user flows if they've changed.
+        
+        Args:
+            user_flows: List of user flow dictionaries
+            
+        Returns:
+            Dict[int, str]: Dictionary mapping flow indices to diagram code
+        """
+        # Print debug info about flows
+        print(f"User flows: {len(user_flows)} flows found")
+        
+        # If flows haven't changed, return cached diagrams
+        if not self.has_flows_changed(user_flows):
+            print(f"Flows unchanged, returning {len(self.flow_diagrams)} cached diagrams")
+            return self.flow_diagrams
+            
+        print("Flows changed, generating new diagrams")
+        
+        # Clear existing diagrams
+        self.flow_diagrams = {}
+        
+        # Generate the first flow's diagram first, to ensure at least one is displayed
+        if len(user_flows) > 0 and user_flows[0].get("flowName") and user_flows[0].get("steps") and len(user_flows[0].get("steps")) > 0:
+            print(f"Generating diagram for first flow: {user_flows[0].get('flowName')}")
+            diagram_code = self.generate_mermaid_diagram(user_flows[0])
+            if diagram_code:
+                self.flow_diagrams[0] = diagram_code
+        
+        # Generate diagrams for the remaining flows
+        for i, flow in enumerate(user_flows):
+            if i == 0:  # Skip the first one which we already processed
+                continue
+                
+            if flow.get("flowName") and flow.get("steps") and len(flow.get("steps")) > 0:
+                print(f"Generating diagram for flow {i}: {flow.get('flowName')}")
+                # Generate diagram code for this flow
+                diagram_code = self.generate_mermaid_diagram(flow)
+                if diagram_code:
+                    self.flow_diagrams[i] = diagram_code
+        
+        print(f"Generated {len(self.flow_diagrams)} diagrams")
+        return self.flow_diagrams
+    
+    def generate_mermaid_diagram(self, flow):
+        """
+        Generate a mermaid diagram for a single user flow.
+        
+        Args:
+            flow: A user flow dictionary
+            
+        Returns:
+            str: Mermaid diagram code or None if generation failed
+        """
+        try:
+            # Pass the flow object directly to the agent
+            result = self.mermaid_agent.process(self.session_id, {
+                "diagram_type": "flowchart",
+                "design_state": flow  # Pass the flow object directly
+            })
+            return result["diagram_code"]
+        except Exception as e:
+            print(f"Error generating mermaid diagram: {str(e)}")
+            return None
 
 
 class ExcalidrawAgent(BaseAgent):
@@ -205,8 +355,6 @@ class ExcalidrawAgent(BaseAgent):
         Returns:
             Dict[str, str]: Dictionary with "system" and "user" prompts.
         """
-        import json
-        
         # Format the design state as a readable string
         design_context = json.dumps(design_state, indent=2)
         
@@ -274,9 +422,6 @@ class ExcalidrawAgent(BaseAgent):
         Returns:
             Dict[str, Any]: The extracted wireframe data.
         """
-        import re
-        import json
-        
         # Try to find JSON between triple backticks
         json_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
         
