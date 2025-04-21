@@ -149,8 +149,6 @@ def main():
         missing_keys.append("DEEPGRAM_API_KEY")
     if not os.getenv("ANTHROPIC_API_KEY"):
         missing_keys.append("ANTHROPIC_API_KEY")
-    if not os.getenv("ELEVENLABS_API_KEY"):
-        missing_keys.append("ELEVENLABS_API_KEY")
     
     if missing_keys:
         print(f"Error: The following environment variables are not set: {', '.join(missing_keys)}")
