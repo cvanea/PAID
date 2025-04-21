@@ -2,12 +2,14 @@
 
 PAID is an open-source voice design partner that helps you think through and visualize your product design ideas as you discuss them.
 
+This is a python implementation of a hackathon project! It may still be janky but it's getting there. 
+
 ## Features
 
 - **Voice Conversations**: Discuss your design ideas naturally through voice
 - **Intelligent Questions**: Get prompted with thoughtful questions to refine your design
-- **Real-time Visualization**: See your user flows visualized as Mermaid diagrams
-- **Design Documentation**: Auto-generated documentation of your design decisions
+- **Real-time Visualization**: See your spec in a streamlit front end 
+- **Design Documentation**: Auto-generated documentation of your design decisions that can be downloaded as an md file
 
 ## Architecture
 
@@ -23,7 +25,6 @@ PAID consists of multiple agents working together:
 - API keys for:
   - Anthropic (Claude)
   - Deepgram (speech-to-text)
-  - ElevenLabs (text-to-speech)
 
 ## Installation
 
@@ -32,7 +33,6 @@ PAID consists of multiple agents working together:
    ```
    ANTHROPIC_API_KEY=your_api_key_here
    DEEPGRAM_API_KEY=your_api_key_here
-   ELEVENLABS_API_KEY=your_api_key_here
    ELEVENLABS_VOICE_ID=optional_custom_voice_id
    ```
 3. Install dependencies:
@@ -54,13 +54,6 @@ uv run -m streamlit run src/paid/frontend/app.py
 
 This will start the Streamlit frontend where you can interact with the voice design partner.
 
-## Development
-
-To run tests:
-
-```bash
-pytest
-```
 
 ## License
 
