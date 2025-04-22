@@ -3,9 +3,9 @@
 Think first, vibe code better 😎
 
 PAID is an open-source voice design partner that helps you think through and visualize your product design ideas as you discuss them. 
-Extract your design specification to pass to a coding assistant or simply use them as a reference for yourself.
+Extract your design specification to pass to a coding assistant or simply use it as a reference for yourself.
 
-Note: This is a python implementation of a hackathon project! It may still be janky but it's getting there. Let me know if there's anything I should add.
+Note: This is a simple python implementation of the work our team did at an Anthropic x South Park Commons hackathon where we were finalists! The implementation is currently janky but it works and I'm iterating to make it pretty. Let me know if there's anything else I should add.
 
 ## Features
 
@@ -67,7 +67,7 @@ This will start the Streamlit frontend where you can interact with the voice des
 The front end will update as your conversation progresses. The conversation tabs lets you start and stop
 interaction with the voice agent and shows you your conversation history. The design tab contains your 
 evolving design spec and can be force refreshed. There's a button to download the current design spec
-which will generate an md file. 
+which will generate an md file. All data is stored in a local sqlite database.
 
 
 ## License
