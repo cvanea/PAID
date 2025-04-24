@@ -266,9 +266,9 @@ def display_design_state(session_id: str) -> None:
                                             st.markdown(step["description"])
                             
                             # Display the mermaid diagram if available
-                            if i in flow_diagrams:
-                                st.markdown("#### Visual Flow")
-                                render_mermaid(flow_diagrams[i])
+                            # if i in flow_diagrams:
+                            #     st.markdown("#### Visual Flow")
+                            #     render_mermaid(flow_diagrams[i])
         
     else:
         # Fallback to original display for old format

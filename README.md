@@ -28,7 +28,7 @@ PAID consists of multiple agents working together:
 - Python 3.13+
 - API keys for:
   - Anthropic (Other model support coming soon)
-  - Deepgram
+  - Deepgram - The free tier is sufficient here!
 
 ## Installation
 
@@ -39,10 +39,8 @@ PAID consists of multiple agents working together:
    DEEPGRAM_API_KEY=your_api_key_here
    ELEVENLABS_VOICE_ID=optional_custom_voice_id
    ```
-3. Install dependencies:
-   ```
-   uv pip install -e .
-   ```
+
+When you first run the app it will install the dependencies. 
 
 ## Usage
 
@@ -69,6 +67,20 @@ interaction with the voice agent and shows you your conversation history. The de
 evolving design spec and can be force refreshed. There's a button to download the current design spec
 which will generate an md file. All data is stored in a local sqlite database.
 
+## Todos
+
+### Next Steps
+- [ ] Add unit tests
+- [ ] Make the front end prettier
+- [ ] Render mermaid and excalidraw (possibly just as images)
+
+### Future
+- [ ] Text alternative to voice
+- [ ] Other LLM support
+- [ ] Explore alternative front ends
+- [ ] Experiment with extracted md file as a starting point to AI coding
+- [ ] Add a prompt option along with md file
+- [ ] Try Pipecat
 
 ## License
 
