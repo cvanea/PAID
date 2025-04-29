@@ -243,11 +243,11 @@ def display_design_state(session_id: str) -> None:
                 st.markdown("### User Flows")
                 
                 # Initialize flow diagram manager if not in session state
-                if "flow_diagram_manager" not in st.session_state:
-                    st.session_state.flow_diagram_manager = UserFlowDiagramManager(session_id)
+                # if "flow_diagram_manager" not in st.session_state:
+                #     st.session_state.flow_diagram_manager = UserFlowDiagramManager(session_id)
                 
-                # Generate diagrams if user flows have changed
-                flow_diagrams = st.session_state.flow_diagram_manager.generate_flow_diagrams(ux["userFlows"])
+                # # Generate diagrams if user flows have changed
+                # flow_diagrams = st.session_state.flow_diagram_manager.generate_flow_diagrams(ux["userFlows"])
                 
                 # Display each user flow with its diagram if available
                 for i, flow in enumerate(ux["userFlows"]):
