@@ -39,6 +39,7 @@ class DeepgramConversationAgent:
         # Callback functions
         self.on_transcript_callback = None
         self.on_agent_response_callback = None
+        self.on_agent_audio_done_callback = None
         
         # Connection and status
         self.connection = None
@@ -51,16 +52,19 @@ class DeepgramConversationAgent:
     
     def register_callbacks(self, 
                           on_transcript: Callable[[str], None],
-                          on_agent_response: Callable[[str], None]):
+                          on_agent_response: Callable[[str], None],
+                          on_agent_audio_done: Callable[[], None] = None):
         """
         Register callback functions for transcript and agent responses.
         
         Args:
             on_transcript: Function to call when a transcript is received
             on_agent_response: Function to call when an agent response is received
+            on_agent_audio_done: Function to call when agent has finished speaking completely
         """
         self.on_transcript_callback = on_transcript
         self.on_agent_response_callback = on_agent_response
+        self.on_agent_audio_done_callback = on_agent_audio_done
     
     async def start_conversation(self, 
                                system_instructions: str = "You are a helpful product design assistant.",
@@ -159,7 +163,7 @@ class DeepgramConversationAgent:
             
             if conversation_text.role == 'user':
                 # Handle user message
-                print(f"User said: {content}")
+                # print(f"User said: {content}")
                 
                 # Call the transcript callback if registered
                 if self.on_transcript_callback:
@@ -178,17 +182,19 @@ class DeepgramConversationAgent:
     
     def _on_user_started_speaking(self, connection=None, event=None, **kwargs):
         """Handle user started speaking events."""
-        print("User started speaking")
         
         # If we were previously capturing an agent response, save the final version
         if self.on_transcript_callback and hasattr(self, 'last_agent_response') and self.last_agent_response:
             print("User started speaking - finalizing previous agent response")
-            # Simulate a final agent response to trigger turn change in the parent agent
-            if self.on_agent_response_callback:
-                self.on_agent_response_callback(self.last_agent_response)
+            
+            # Call audio done callback to finalize the agent response if available
+            if hasattr(self, 'on_agent_audio_done_callback') and self.on_agent_audio_done_callback:
+                self.on_agent_audio_done_callback()
             
             # Reset the tracked agent response
             self.last_agent_response = None
+        else:
+            print("User started speaking")
     
     def _on_agent_thinking(self, connection=None, agent_thinking=None, **kwargs):
         """Handle agent thinking state."""
@@ -204,6 +210,13 @@ class DeepgramConversationAgent:
     def _on_agent_audio_done(self, connection=None, event=None, **kwargs):
         """Handle agent audio done events."""
         print("Agent finished speaking")
+        
+        # Call the finalization method in the parent agent if registered
+        if hasattr(self, 'on_agent_audio_done_callback') and self.on_agent_audio_done_callback:
+            self.on_agent_audio_done_callback()
+            
+        # Reset the tracked agent response
+        self.last_agent_response = None
     
     def _on_error(self, connection=None, error=None, **kwargs):
         """Handle errors."""

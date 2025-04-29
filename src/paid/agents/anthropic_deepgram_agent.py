@@ -48,7 +48,8 @@ class AnthropicDeepgramAgent:
         # Register callbacks
         self.deepgram_agent.register_callbacks(
             on_transcript=self._handle_user_transcript,
-            on_agent_response=self._handle_agent_response
+            on_agent_response=self._handle_agent_response,
+            on_agent_audio_done=self._finalize_agent_response
         )
     
     def _get_current_design_state(self) -> Dict[str, Any]:
@@ -109,11 +110,11 @@ class AnthropicDeepgramAgent:
             # Record that user is now speaking
             self.last_speaker = "user"
             
-            print(f"New user turn: {text}")
+            print(f"User: {text}")
         else:
             # Continue accumulating the current user message
             self.current_user_transcript += " " + text
-            print(f"Continuing user message: {text}")
+            print(f"User: {text}")
         
         # We'll only save to the database when the agent starts speaking
     
@@ -134,46 +135,52 @@ class AnthropicDeepgramAgent:
             self.current_agent_response = response
             self.last_speaker = "agent"
             
-            print(f"New agent turn: {response}")
+            print(f"Agent: {response}")
         else:
             # Continue accumulating the current agent response
             self.current_agent_response += " " + response
-            print(f"Continuing agent response: {response}")
+            print(f"Agent: {response}")
             
             # If this is a continuation, we don't need to do any additional processing yet
             return
-        
-        # Save the initial agent response to the database
-        # We'll update this if we get more partials
-        add_conversation_message(self.session_id, "agent", self.current_agent_response)
-        
-        # Update the design state in a background thread to keep it non-blocking
-        import threading
-        
-        def update_design_state_thread():
-            try:
-                # Update the design state based on the complete conversation
-                updated_state = self.design_agent.process(self.session_id, {})
-                
-                # Create a new event loop for this thread to handle async operations
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                
-                try:
-                    # Execute the refresh instructions method
-                    loop.run_until_complete(self._refresh_system_instructions())
-                finally:
-                    # Close the loop
-                    loop.close()
-            except Exception as e:
-                print(f"Error updating design state: {e}")
-        
-        # Start a background thread to handle the update
-        thread = threading.Thread(target=update_design_state_thread)
-        thread.daemon = True  # Allow the program to exit even if this thread is running
-        thread.start()
     
-    # The original async update method is no longer used
+    def _finalize_agent_response(self):
+        """
+        Process the complete agent response when a turn is finished.
+        This should be called when we know the agent is done speaking.
+        """
+        # Save the complete agent response to the database
+        if self.last_speaker == "agent" and self.current_agent_response:
+            print(f"Saving complete agent response: {self.current_agent_response}")
+            add_conversation_message(self.session_id, "agent", self.current_agent_response)
+            
+            # Update the design state in a background thread to keep it non-blocking
+            import threading
+            
+            def update_design_state_thread():
+                try:
+                    # Update the design state based on the complete conversation
+                    updated_state = self.design_agent.process(self.session_id, {})
+                    
+                    # Create a new event loop for this thread to handle async operations
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    
+                    try:
+                        # Execute the refresh instructions method
+                        loop.run_until_complete(self._refresh_system_instructions())
+                    finally:
+                        # Close the loop
+                        loop.close()
+                except Exception as e:
+                    print(f"Error updating design state: {e}")
+            
+            # Start a background thread to handle the update
+            thread = threading.Thread(target=update_design_state_thread)
+            thread.daemon = True  # Allow the program to exit even if this thread is running
+            thread.start()
+    
+    # The original async update method is now called after the agent finishes speaking
     
     async def _refresh_system_instructions(self):
         """Refresh the system instructions with the latest from the database."""

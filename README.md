@@ -72,11 +72,14 @@ which will generate an md file. All data is stored in a local sqlite database.
 ### Next Steps
 - [ ] Add unit tests
 - [ ] Make the front end prettier
+- [ ] Other LLM support
 - [ ] Render mermaid and excalidraw (possibly just as images)
+- [ ] Reduce the message history given to the design agent to save tokens
+  - [ ] Summarise every 5 conversation turns
+  - [ ] Pass only the last summary to the design agent and the last 5 conversation chunks
 
 ### Future
 - [ ] Text alternative to voice
-- [ ] Other LLM support
 - [ ] Explore alternative front ends
 - [ ] Experiment with extracted md file as a starting point to AI coding
 - [ ] Add a prompt option along with md file
