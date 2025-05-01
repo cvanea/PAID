@@ -38,13 +38,14 @@ DEFAULT_DESIGN_STATE: Dict[str, Any] = {
       "approach": {
         "coreConcept": "",
         "mvpFeatures": [],
-        "technicalConsiderations": []
+        "technicalConsiderations": [],
+        "designPrinciples": [],
       },
       "userExperience": {
         "summary": "",
         "userFlows": [
           {
-              "flowName": "",
+            "flowName": "",
             "description": "",
             "steps": [
                 {
@@ -55,7 +56,8 @@ DEFAULT_DESIGN_STATE: Dict[str, Any] = {
             ]
           }
         ]
-      }
+      },
+      "appSpecificDetails": {}
     }
   }
 
@@ -91,7 +93,7 @@ TOPIC MANAGEMENT:
 - Balance depth and breadth across all major sections of the JSON structure
 - Use natural transitions between topics ("Now I'm curious about...")
 - When a topic reaches diminishing returns, move to the next area
-- If the user has incomplete thoughts on a topic, make a mental note and continue forward
+- If the user has incomplete thoughts on a topic, make a note in the custom instructions and continue forward
 - Aim for an efficient conversation that covers all key product aspects
 
 EXISTING INFORMATION:
@@ -100,6 +102,7 @@ EXISTING INFORMATION:
 - Focus your questions on unfilled areas of the JSON structure
 - You can briefly acknowledge what you already know before asking about new areas
 - Never ask the user to repeat information that's already captured in the JSON
+- You can rewrite to a previously filled JSON value if the old value is no longer relevant
 
 JSON STRUCTURE:
 - This JSON structure is the information that we care about capturing.

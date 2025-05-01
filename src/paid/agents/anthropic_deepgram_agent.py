@@ -11,7 +11,7 @@ import json
 from typing import Dict, Any, Optional, List, Callable
 
 from paid.agents.deepgram_agent import DeepgramConversationAgent
-from paid.database import add_conversation_message, get_latest_design_state, get_latest_instructions, update_design_state
+from paid.database import add_conversation_message, get_latest_design_state, get_latest_instructions
 from paid.agents import DesignAgent
 from paid.defaults import DEFAULT_DESIGN_STATE, DEFAULT_INSTRUCTIONS_TEMPLATE
 
@@ -27,7 +27,6 @@ class AnthropicDeepgramAgent:
         
         Args:
             session_id: The database session ID to associate conversations with
-            custom_instructions: Optional custom instructions template to use instead of default
             is_resuming: Whether this is resuming a previous session
         """
         self.session_id = session_id
@@ -36,9 +35,6 @@ class AnthropicDeepgramAgent:
         # Create the Deepgram agent with the resuming flag
         self.deepgram_agent = DeepgramConversationAgent(is_resuming_session=is_resuming)
         self.design_agent = DesignAgent()
-        
-        # Store custom instructions if provided
-        self.instructions_template = custom_instructions or DEFAULT_INSTRUCTIONS_TEMPLATE
         
         # Add message buffering to prevent multiple database calls for partial messages
         self.current_user_transcript = ""

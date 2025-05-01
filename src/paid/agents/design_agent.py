@@ -3,7 +3,7 @@ from typing import Dict, Any, List
 
 from paid.agents.base import BaseAgent
 from paid.database import get_conversation_history, update_design_state, get_latest_design_state, get_latest_instructions
-from paid.defaults import DEFAULT_DESIGN_STATE, DEFAULT_INSTRUCTIONS_TEMPLATE
+from paid.defaults import DEFAULT_DESIGN_STATE
 
 class DesignAgent(BaseAgent):
     """
@@ -27,7 +27,6 @@ class DesignAgent(BaseAgent):
         current_state = get_latest_design_state(session_id) or self._create_initial_state()
         
         # Get the current custom instructions
-        from paid.database import get_latest_instructions
         previous_custom_instructions = get_latest_instructions(session_id)
         
         # Get conversation history
@@ -39,7 +38,7 @@ class DesignAgent(BaseAgent):
         # Generate updated design state using Claude
         design_response = self.client.messages.create(
             model=self.model,
-            max_tokens=4000,
+            max_tokens=8000,  # Increased token limit for larger JSON
             system=design_prompt["system"],
             messages=[
                 {"role": "user", "content": design_prompt["user"]}
@@ -48,6 +47,12 @@ class DesignAgent(BaseAgent):
         
         # Extract the JSON from the response
         updated_state = self._extract_json(design_response.content[0].text)
+        
+        # If JSON parsing failed, use the current state and abort the update
+        if updated_state is None:
+            print("WARNING: Using existing design state due to JSON parsing failure")
+            # Return the current state without updating the database
+            return current_state
         
         # Now, generate custom instructions for the voice agent based on the updated design state
         instruction_prompt = self._create_instruction_prompt(updated_state, conversation, previous_custom_instructions)
@@ -131,6 +136,8 @@ class DesignAgent(BaseAgent):
         - Resolve contradictions by favoring the most recent information
         - Keep the JSON structure consistent
         - Format user flows so they can be visualized with mermaid diagrams
+        - If new information is not appropriate for existing keys, use appSpecificDetails
+        - Do NOT record information specific to the user currently speaking, abstract it to a persona if necessary
         - Return ONLY the updated JSON without any additional text
         """
         
@@ -236,7 +243,7 @@ class DesignAgent(BaseAgent):
             text: The text response from Claude.
             
         Returns:
-            Dict[str, Any]: The extracted JSON as a Python dictionary.
+            Dict[str, Any]: The extracted JSON as a Python dictionary or None if parsing fails.
         """
         # Try to find JSON between triple backticks
         import re
@@ -250,7 +257,9 @@ class DesignAgent(BaseAgent):
         
         try:
             return json.loads(json_str)
-        except json.JSONDecodeError:
-            # If JSON parsing fails, return the original state and log an error
-            print(f"Error: Could not parse JSON from response: {text}")
-            return self._create_initial_state()
+        except json.JSONDecodeError as e:
+            # If JSON parsing fails, log an error and return None to indicate failure
+            print(f"ERROR: JSON parsing failed - {str(e)}")
+            print(f"Response text (truncated): {text[:500]}...")
+            # Return None to indicate failure instead of an empty state
+            return None

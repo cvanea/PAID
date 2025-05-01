@@ -74,16 +74,21 @@ which will generate an md file. All data is stored in a local sqlite database.
 - [ ] Make the front end prettier
 - [ ] Other LLM support
 - [ ] Render mermaid and excalidraw (possibly just as images)
+- [ ] Rather than output the whole json design store, output only the changed keys and write programmatically
+- [ ] Log time between different steps
 - [ ] Reduce the message history given to the design agent to save tokens
   - [ ] Summarise every 5 conversation turns
   - [ ] Pass only the last summary to the design agent and the last 5 conversation chunks
 
 ### Future
+- [ ] Add a front end agent that writes to the front end (and md file) based on any new fields in the json design store
 - [ ] Text alternative to voice
 - [ ] Explore alternative front ends
 - [ ] Experiment with extracted md file as a starting point to AI coding
 - [ ] Add a prompt option along with md file
 - [ ] Try Pipecat
+- [ ] Try Figma MCP
+
 
 ## License
 
