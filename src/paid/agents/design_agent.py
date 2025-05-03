@@ -223,10 +223,9 @@ class DesignAgent(BaseAgent):
         CUSTOM GUIDANCE:
         - Focus on exploring <specific area> next because <reason>
         - Prioritize questions about <specific topic> to complete <specific section>
-        - Avoid discussing <specific topic> until <prerequisite> is established
         - <any other specific guidance based on the current state>
         
-        Your guidance should be 3-5 bullet points maximum, focused on helping the agent navigate
+        Your guidance should be 3 bullet points maximum, focused on helping the agent navigate
         the conversation based on what's already been discussed and what needs attention next.
         """
         
