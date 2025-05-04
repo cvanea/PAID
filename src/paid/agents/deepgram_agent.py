@@ -68,13 +68,13 @@ class DeepgramConversationAgent:
     
     async def start_conversation(self, 
                                system_instructions: str = "You are a helpful product design assistant.",
-                               ai_model: str = "claude-3-opus-20240229"):
+                               ai_model: str = None):
         """
         Start a new conversation session with Deepgram.
         
         Args:
             system_instructions: Instructions for the AI agent behavior
-            ai_model: The AI model to use for the conversation
+            ai_model: The AI model to use for the conversation (provider-specific)
         """
         # Create a websocket connection
         self.connection = self.deepgram.agent.websocket.v("1")
@@ -96,16 +96,51 @@ class DeepgramConversationAgent:
         options.agent.listen.model = "nova-3"  # Latest speech recognition model
         options.agent.listen.keyterms = ["hello", "goodbye"]
         
-        # Configure to use Anthropic directly
-        options.agent.think.provider = {
-            "type": "custom",
-            "url": "https://api.anthropic.com/v1/chat/completions",
-            "headers": [
-                {"key": "x-api-key", "value": os.getenv("ANTHROPIC_API_KEY", "")},
-                {"key": "anthropic-version", "value": "2023-06-01"},
-                {"key": "Content-Type", "value": "application/json"}
-            ],
-        }
+        # Get provider-specific settings based on the PROVIDER env var
+        provider = os.getenv("PROVIDER", "anthropic").lower()
+        ai_model = ai_model or self._get_default_model_for_provider(provider)
+        
+        # Configure the provider settings
+        if provider == "anthropic":
+            options.agent.think.provider = {
+                "type": "custom",
+                "url": "https://api.anthropic.com/v1/chat/completions",
+                "headers": [
+                    {"key": "x-api-key", "value": os.getenv("ANTHROPIC_API_KEY", "")},
+                    {"key": "anthropic-version", "value": "2023-06-01"},
+                    {"key": "Content-Type", "value": "application/json"}
+                ],
+            }
+        elif provider == "openai":
+            options.agent.think.provider = {
+                "type": "custom",
+                "url": "https://api.openai.com/v1/chat/completions",
+                "headers": [
+                    {"key": "Authorization", "value": f"Bearer {os.getenv('OPENAI_API_KEY', '')}"},
+                    {"key": "Content-Type", "value": "application/json"}
+                ],
+            }
+        elif provider == "google":
+            options.agent.think.provider = {
+                "type": "custom",
+                "url": "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent",
+                "headers": [
+                    {"key": "x-goog-api-key", "value": os.getenv("GOOGLE_API_KEY", "")},
+                    {"key": "Content-Type", "value": "application/json"}
+                ],
+            }
+        else:
+            # Default to Anthropic if provider not recognized
+            print(f"Warning: Provider '{provider}' not recognized. Defaulting to Anthropic.")
+            options.agent.think.provider = {
+                "type": "custom",
+                "url": "https://api.anthropic.com/v1/chat/completions",
+                "headers": [
+                    {"key": "x-api-key", "value": os.getenv("ANTHROPIC_API_KEY", "")},
+                    {"key": "anthropic-version", "value": "2023-06-01"},
+                    {"key": "Content-Type", "value": "application/json"}
+                ],
+            }
         
         options.agent.think.model = ai_model
         options.agent.think.instructions = system_instructions
@@ -123,11 +158,31 @@ class DeepgramConversationAgent:
                 return False
                 
             self.is_listening = True
-            print("Deepgram Agent is now listening")
+            print(f"Deepgram Agent is now listening using {provider} model: {ai_model}")
             return True
         except Exception as e:
             print(f"Failed to start Deepgram Agent: {e}")
             return False
+    
+    def _get_default_model_for_provider(self, provider: str) -> str:
+        """
+        Get the default model name for a given provider.
+        
+        Args:
+            provider: The name of the provider (anthropic, openai, google)
+            
+        Returns:
+            str: The default model name for the provider
+        """
+        if provider == "anthropic":
+            return os.getenv("ANTHROPIC_MODEL", "claude-3-7-sonnet-20250219")
+        elif provider == "openai":
+            return os.getenv("OPENAI_MODEL", "gpt-4o")
+        elif provider == "google":
+            return os.getenv("GOOGLE_MODEL", "gemini-1.5-pro")
+        else:
+            # Default to Anthropic model
+            return os.getenv("ANTHROPIC_MODEL", "claude-3-7-sonnet-20250219")
     
     def _on_open(self, connection=None, event=None, **kwargs):
         """Handle connection open events."""
@@ -278,38 +333,3 @@ class DeepgramConversationAgent:
         else:
             print("Cannot update instructions: Deepgram Agent is not connected")
             return False
-
-# Example usage:
-"""
-async def main():
-    agent = DeepgramConversationAgent()
-    
-    # Define callback functions
-    def on_transcript(text):
-        print(f"User said: {text}")
-    
-    def on_agent_response(text):
-        print(f"Agent responded: {text}")
-    
-    # Register callbacks
-    agent.register_callbacks(on_transcript, on_agent_response)
-    
-    # Start conversation
-    await agent.start_conversation(
-        system_instructions="You are a product design assistant. Help users clarify their design concepts."
-    )
-    
-    # Keep the connection open for a while
-    try:
-        # Wait for interactions or send text directly
-        await agent.send_text("I'm designing a mobile app for tracking fitness goals")
-        
-        # Wait for responses
-        await asyncio.sleep(60)
-    finally:
-        # Stop the conversation
-        await agent.stop_conversation()
-
-if __name__ == "__main__":
-    asyncio.run(main())
-"""

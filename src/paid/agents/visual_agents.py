@@ -37,18 +37,20 @@ class MermaidAgent(BaseAgent):
         # Create a prompt for generating the diagram
         prompt = self._create_prompt(design_state, diagram_type)
         
-        # Generate the diagram code using Claude
-        response = self.client.messages.create(
-            model=self.model,
-            max_tokens=2000,
+        # Generate the diagram code using the provider
+        response = self.provider.create_message(
             system=prompt["system"],
             messages=[
                 {"role": "user", "content": prompt["user"]}
-            ]
+            ],
+            max_tokens=2000
         )
         
+        # Extract the response content
+        response_text = self.provider.get_content_from_response(response)
+        
         # Extract the Mermaid code from the response
-        diagram_code = self._extract_code(response.content[0].text)
+        diagram_code = self._extract_code(response_text)
         
         return {
             "diagram_code": diagram_code,
@@ -57,7 +59,7 @@ class MermaidAgent(BaseAgent):
     
     def _create_prompt(self, design_state: Dict[str, Any], diagram_type: str) -> Dict[str, str]:
         """
-        Create a prompt for Claude to generate a Mermaid diagram.
+        Create a prompt for the model to generate a Mermaid diagram.
         
         Args:
             design_state: The current design state.
@@ -136,10 +138,10 @@ class MermaidAgent(BaseAgent):
     
     def _extract_code(self, text: str) -> str:
         """
-        Extract Mermaid code from Claude's response.
+        Extract Mermaid code from model's response.
         
         Args:
-            text: The text response from Claude.
+            text: The text response from the model.
             
         Returns:
             str: The extracted Mermaid code.
@@ -325,18 +327,20 @@ class ExcalidrawAgent(BaseAgent):
         # Create a prompt for generating the wireframe description
         prompt = self._create_prompt(design_state, wireframe_type)
         
-        # Generate the wireframe description using Claude
-        response = self.client.messages.create(
-            model=self.model,
-            max_tokens=2000,
+        # Generate the wireframe description using the model provider
+        response = self.provider.create_message(
             system=prompt["system"],
             messages=[
                 {"role": "user", "content": prompt["user"]}
-            ]
+            ],
+            max_tokens=2000
         )
         
+        # Extract the content from the response
+        response_text = self.provider.get_content_from_response(response)
+        
         # Extract the wireframe elements and description
-        wireframe_data = self._extract_wireframe_data(response.content[0].text)
+        wireframe_data = self._extract_wireframe_data(response_text)
         
         return {
             "wireframe_elements": wireframe_data["elements"],
@@ -346,7 +350,7 @@ class ExcalidrawAgent(BaseAgent):
     
     def _create_prompt(self, design_state: Dict[str, Any], wireframe_type: str) -> Dict[str, str]:
         """
-        Create a prompt for Claude to generate an Excalidraw wireframe description.
+        Create a prompt for the model to generate an Excalidraw wireframe description.
         
         Args:
             design_state: The current design state.
@@ -414,10 +418,10 @@ class ExcalidrawAgent(BaseAgent):
     
     def _extract_wireframe_data(self, text: str) -> Dict[str, Any]:
         """
-        Extract wireframe data from Claude's response.
+        Extract wireframe data from model's response.
         
         Args:
-            text: The text response from Claude.
+            text: The text response from the model.
             
         Returns:
             Dict[str, Any]: The extracted wireframe data.

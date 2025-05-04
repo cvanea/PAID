@@ -14,7 +14,7 @@ from paid.database import (
     get_conversation_history
 )
 from paid.agents.visual_agents import UserFlowDiagramManager
-from paid.agents.anthropic_deepgram_agent import AnthropicDeepgramAgent
+from paid.agents.voice_assistant_agent import VoiceAssistantAgent
 from paid.frontend.export import generate_md_from_design_state
 
 
@@ -326,7 +326,7 @@ async def start_live_voice_session(session_id: str, is_resuming: bool = False):
     """
     try:
         # Initialize the integrated agent with resuming flag
-        agent = AnthropicDeepgramAgent(
+        agent = VoiceAssistantAgent(
             session_id=session_id, 
             is_resuming=is_resuming
         )

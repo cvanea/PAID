@@ -1,5 +1,5 @@
 # TODO: This file is not currently in use. It will be repurposed in future to handle the text alternative to voice for a user. 
-# TODO: Voice is currently handled by anthropic_deepgram_agent.py
+# TODO: Voice is currently handled by voice_assistant_agent.py
 
 import os
 import json
@@ -113,17 +113,17 @@ class VoiceAgent(BaseAgent):
         # Create a prompt that includes the current design state
         prompt = self._create_prompt(user_message, design_state)
         
-        # Generate response using Claude
-        response = self.client.messages.create(
-            model=self.model,
-            max_tokens=1000,
+        # Generate response using the model provider
+        response = self.provider.create_message(
             system=prompt["system"],
             messages=[
                 {"role": "user", "content": prompt["user"]}
-            ]
+            ],
+            max_tokens=1000
         )
         
-        response_text = response.content[0].text
+        # Extract the content from the response
+        response_text = self.provider.get_content_from_response(response)
         
         # Record agent's response in conversation history
         add_conversation_message(session_id, "agent", response_text)
@@ -138,7 +138,7 @@ class VoiceAgent(BaseAgent):
     
     def _create_prompt(self, user_message: str, design_state: Dict[str, Any]) -> Dict[str, str]:
         """
-        Create a prompt for Claude based on the user message and design state.
+        Create a prompt for the model based on the user message and design state.
         
         Args:
             user_message: The user's message.

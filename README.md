@@ -27,7 +27,10 @@ PAID consists of multiple agents working together:
 
 - Python 3.13+
 - API keys for:
-  - Anthropic (Other model support coming soon)
+  - One of the following model providers:
+    - Anthropic Claude (default)
+    - OpenAI GPT models
+    - Google Gemini models
   - Deepgram - The free tier is sufficient here!
 
 ## Installation
@@ -35,8 +38,24 @@ PAID consists of multiple agents working together:
 1. Clone the repository
 2. Create a `.env` file with your API keys:
    ```
-   ANTHROPIC_API_KEY=your_api_key_here
-   DEEPGRAM_API_KEY=your_api_key_here
+   # Required API keys
+   DEEPGRAM_API_KEY=your_deepgram_api_key_here
+   
+   # Provider selection (defaults to anthropic if not specified)
+   PROVIDER=anthropic  # Options: anthropic, openai, google
+   
+   # Provider-specific API keys
+   ANTHROPIC_API_KEY=your_anthropic_api_key_here
+   ANTHROPIC_MODEL=claude-3-7-sonnet-20250219  # Default model for Anthropic
+   
+   # Optional API keys for other providers
+   # OPENAI_API_KEY=your_openai_api_key_here
+   # OPENAI_MODEL=gpt-4o  # Default model for OpenAI
+   
+   # GOOGLE_API_KEY=your_google_api_key_here
+   # GOOGLE_MODEL=gemini-1.5-pro  # Default model for Google
+   
+   # Optional ElevenLabs configuration
    ELEVENLABS_VOICE_ID=optional_custom_voice_id
    ```
 
@@ -72,7 +91,7 @@ which will generate an md file. All data is stored in a local sqlite database.
 ### Next Steps
 - [ ] Add unit tests
 - [ ] Make the front end prettier
-- [ ] Other LLM support
+- [x] Other LLM support (Added abstract provider interface with support for Anthropic, OpenAI, and Google)
 - [ ] Render mermaid and excalidraw (possibly just as images)
 - [ ] Rather than output the whole json design store, output only the changed keys and write programmatically
 - [ ] Log time between different steps

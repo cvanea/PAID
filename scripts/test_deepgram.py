@@ -8,7 +8,7 @@ import asyncio
 from dotenv import load_dotenv
 
 from paid.agents.deepgram_agent import DeepgramConversationAgent
-from paid.agents.anthropic_deepgram_agent import AnthropicDeepgramAgent
+from paid.agents.voice_assistant_agent import VoiceAssistantAgent
 from paid.database import setup_database, create_session
 
 async def test_deepgram_agent():
@@ -75,9 +75,9 @@ async def test_deepgram_agent():
         print("Conversation stopped")
 
 
-async def test_anthropic_agent():
-    """Test the integrated AnthropicDeepgramAgent."""
-    print("\n=== TESTING INTEGRATED ANTHROPIC AGENT ===\n")
+async def test_voice_assistant_agent():
+    """Test the integrated VoiceAssistantAgent."""
+    print("\n=== TESTING INTEGRATED VOICE ASSISTANT AGENT ===\n")
     
     # Set up database
     setup_database()
@@ -87,7 +87,7 @@ async def test_anthropic_agent():
     print(f"Created session with ID: {session_id}")
     
     # Create agent
-    agent = AnthropicDeepgramAgent(session_id)
+    agent = VoiceAssistantAgent(session_id)
     
     # Start the agent
     print("Starting Anthropic agent...")
@@ -134,8 +134,8 @@ async def run_tests():
     # Test the basic Deepgram agent
     # await test_deepgram_agent()
     
-    # Test the Anthropic integration
-    await test_anthropic_agent()
+    # Test the Voice Assistant integration
+    await test_voice_assistant_agent()
 
 
 def main():
