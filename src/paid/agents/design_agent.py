@@ -35,18 +35,18 @@ class DesignAgent(BaseAgent):
         # Create a prompt that includes the current design state and conversation
         design_prompt = self._create_design_prompt(current_state, conversation)
         
-        # Generate updated design state using Claude
-        design_response = self.client.messages.create(
-            model=self.model,
-            max_tokens=8000,  # Increased token limit for larger JSON
+        # Generate updated design state using the model provider
+        design_response = self.provider.create_message(
             system=design_prompt["system"],
             messages=[
                 {"role": "user", "content": design_prompt["user"]}
-            ]
+            ],
+            max_tokens=8000  # Increased token limit for larger JSON
         )
         
         # Extract the JSON from the response
-        updated_state = self._extract_json(design_response.content[0].text)
+        response_text = self.provider.get_content_from_response(design_response)
+        updated_state = self._extract_json(response_text)
         
         # If JSON parsing failed, use the current state and abort the update
         if updated_state is None:
@@ -57,17 +57,16 @@ class DesignAgent(BaseAgent):
         # Now, generate custom instructions for the voice agent based on the updated design state
         instruction_prompt = self._create_instruction_prompt(updated_state, conversation, previous_custom_instructions)
         
-        instruction_response = self.client.messages.create(
-            model=self.model,
-            max_tokens=2000,
+        instruction_response = self.provider.create_message(
             system=instruction_prompt["system"],
             messages=[
                 {"role": "user", "content": instruction_prompt["user"]}
-            ]
+            ],
+            max_tokens=2000
         )
         
         # Extract custom instructions from the response
-        custom_instruction_text = instruction_response.content[0].text.strip()
+        custom_instruction_text = self.provider.get_content_from_response(instruction_response).strip()
         
         # Check if the response indicates no change is needed
         if custom_instruction_text.startswith("NO_CHANGE:"):
