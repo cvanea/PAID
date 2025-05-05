@@ -3,6 +3,7 @@ from typing import Dict, Any, Optional, List, Union
 from abc import ABC, abstractmethod
 
 import anthropic
+from google import genai
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -99,37 +100,48 @@ class OpenAIProvider(ModelProvider):
 
 
 class GoogleProvider(ModelProvider):
-    """Google API provider implementation (dummy for now)."""
+    """Google Gemini API provider implementation using google.generativeai package."""
     
     def __init__(self):
         """Initialize the Google provider."""
-        # Dummy implementation - will be replaced with actual implementation later
-        self.model = os.getenv("GOOGLE_MODEL", "gemini-1.5-pro")
+        self.client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY", ""))
+        self.model = os.getenv("GOOGLE_MODEL", "gemini-2.0-flash")
     
     def create_message(self, 
-                      system: str = None, 
-                      messages: List[Dict[str, str]] = None,
-                      max_tokens: int = 1000) -> Dict[str, Any]:
-        """Create a message using Google's API (dummy implementation)."""
-        # Return a dummy response that mimics the structure we need
-        return {
-            "candidates": [
-                {
-                    "content": {
-                        "parts": [
-                            {
-                                "text": "This is a dummy response from Google provider."
-                            }
-                        ]
-                    }
-                }
-            ]
-        }
+                     system: str = None, 
+                     messages: List[Dict[str, str]] = None,
+                     max_tokens: int = 1000) -> Dict[str, Any]:
+        """Create a message using Google's Gemini API."""
+        
+        # Convert messages to the format expected by the Gemini API
+        formatted_contents = []
+        
+        if messages:
+            for msg in messages:
+                role = msg.get("role", "user")
+                content = msg.get("content", "")
+                
+                # Google uses "user" and "model" roles
+                gemini_role = "user" if role == "user" else "model"
+                
+                # Google expects each content to be a dict with role and parts
+                formatted_contents.append({"role": gemini_role, "parts": [{"text": content}]})
+        
+        # Generate content with the model
+        response = self.client.models.generate_content(
+            model=self.model,
+            config=genai.types.GenerateContentConfig(
+                max_output_tokens=max_tokens,
+                temperature=0.7,
+                system_instruction=system
+            ),
+            contents=formatted_contents,
+        )
+        return response
     
     def get_content_from_response(self, response: Any) -> str:
         """Extract content from Google's response."""
-        # Dummy implementation
-        return response["candidates"][0]["content"]["parts"][0]["text"]
+        return response.text
 
 
 def get_model_provider() -> ModelProvider:

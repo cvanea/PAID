@@ -111,21 +111,21 @@ class DeepgramConversationAgent:
                     {"key": "Content-Type", "value": "application/json"}
                 ],
             }
+        elif provider == "google":
+            options.agent.think.provider = {
+                "type": "custom",
+                "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+                "headers": [
+                    {"key": "Authorization", "value": f"Bearer {os.getenv('GOOGLE_API_KEY', '')}"},
+                    {"key": "Content-Type", "value": "application/json"}
+                ],
+            }
         elif provider == "openai":
             options.agent.think.provider = {
                 "type": "custom",
                 "url": "https://api.openai.com/v1/chat/completions",
                 "headers": [
                     {"key": "Authorization", "value": f"Bearer {os.getenv('OPENAI_API_KEY', '')}"},
-                    {"key": "Content-Type", "value": "application/json"}
-                ],
-            }
-        elif provider == "google":
-            options.agent.think.provider = {
-                "type": "custom",
-                "url": "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent",
-                "headers": [
-                    {"key": "x-goog-api-key", "value": os.getenv("GOOGLE_API_KEY", "")},
                     {"key": "Content-Type", "value": "application/json"}
                 ],
             }
@@ -210,24 +210,16 @@ class DeepgramConversationAgent:
         self._inject_agent_message(welcome_message)
     
     def _on_conversation_text(self, connection=None, conversation_text=None, **kwargs):
-        # print(f"\n\n{conversation_text}\n\n")
-
         # """Handle transcribed speech from both user and agent."""
         if conversation_text and hasattr(conversation_text, 'role') and hasattr(conversation_text, 'content'):
             content = conversation_text.content
             
             if conversation_text.role == 'user':
-                # Handle user message
-                # print(f"User said: {content}")
-                
                 # Call the transcript callback if registered
                 if self.on_transcript_callback:
                     self.on_transcript_callback(content)
             
-            elif conversation_text.role == 'assistant':
-                # Handle agent message
-                # print(f"Agent response: {content}")
-                
+            elif conversation_text.role == 'assistant':        
                 # Track the most recent agent response
                 self.last_agent_response = content
                 
@@ -304,6 +296,7 @@ class DeepgramConversationAgent:
             self.connection = None
             self.is_listening = False
     
+    # TODO: Implement text input
     # Text input is not supported directly
     # The agent is designed to work with microphone input only
     # If you need text input, consider using a different agent implementation

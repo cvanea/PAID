@@ -1,4 +1,5 @@
-import pytest
+# import pytest
+import os
 from paid.database.models import DesignSession, DesignState, Conversation
 
 def test_models_import():
